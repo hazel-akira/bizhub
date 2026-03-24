@@ -1,0 +1,43 @@
+name: akira_bites
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  drift: ^2.21.0
+  drift_flutter: ^0.3.0
+  sqlite3_flutter_libs: ^0.6.0
+  path_provider: ^2.1.5
+  path: ^1.9.0
+  flutter_riverpod: ^2.6.1
+  url_launcher: ^6.3.0
+  share_plus: ^10.1.2
+  flutter_contacts: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  drift_dev: ^2.21.0
+  build_runner: ^2.4.13
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+# ✅ MUST BE OUTSIDE dev_dependencies
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/icon.png"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
