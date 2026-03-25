@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import '../core/phone_utils.dart';
+
 part 'app_database.g.dart';
 
 class Sales extends Table {
@@ -143,11 +145,62 @@ class AppDatabase extends _$AppDatabase {
     return (select(customers)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
-  Future<void> addCustomer(String name, {String phone = ''}) async {
+  /// Returns the existing customer if [phone] (after normalization) already exists.
+  /// Otherwise inserts and returns `null`. Empty phone never matches a duplicate.
+  Future<Customer?> addCustomer(String name, {String phone = ''}) async {
+    final trimmed = phone.trim();
+    final normalized = normalizePhoneKey(trimmed);
+    if (normalized.isNotEmpty) {
+      final existing = await findCustomerByNormalizedPhone(trimmed);
+      if (existing != null) {
+        return existing;
+      }
+    }
+    final storedPhone = normalized.isNotEmpty ? normalized : trimmed;
     await into(customers).insert(CustomersCompanion.insert(
       name: name,
-      phone: Value(phone),
+      phone: Value(storedPhone),
     ));
+    return null;
+  }
+
+  /// Same digits as [normalizePhoneKey] (e.g. 07… and 254… match).
+  Future<Customer?> findCustomerByNormalizedPhone(String phone) async {
+    final key = normalizePhoneKey(phone);
+    if (key.isEmpty) return null;
+    final all = await getAllCustomers();
+    for (final c in all) {
+      if (normalizePhoneKey(c.phone) == key) return c;
+    }
+    return null;
+  }
+
+  /// Returns another customer if the new phone belongs to someone else; otherwise updates and returns `null`.
+  Future<Customer?> updateCustomer(int id, {required String name, String phone = ''}) async {
+    final trimmed = phone.trim();
+    final normalized = normalizePhoneKey(trimmed);
+    if (normalized.isNotEmpty) {
+      final existing = await findCustomerByNormalizedPhone(trimmed);
+      if (existing != null && existing.id != id) {
+        return existing;
+      }
+    }
+    final storedPhone = normalized.isNotEmpty ? normalized : trimmed;
+    await (update(customers)..where((t) => t.id.equals(id))).write(
+      CustomersCompanion(
+        name: Value(name),
+        phone: Value(storedPhone),
+      ),
+    );
+    return null;
+  }
+
+  /// Returns `false` if this customer has any orders (FK safety).
+  Future<bool> deleteCustomer(int id) async {
+    final related = await (select(orders)..where((t) => t.customerId.equals(id))).get();
+    if (related.isNotEmpty) return false;
+    await (delete(customers)..where((t) => t.id.equals(id))).go();
+    return true;
   }
 
   Future<List<Order>> getPendingOrders() async {

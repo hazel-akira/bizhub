@@ -11,7 +11,6 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
-
   late AnimationController _logoController;
   late AnimationController _imageController;
   late AnimationController _progressController;
@@ -26,33 +25,36 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
 
     // Logo fade animation
-    _logoController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 2));
-    _logoFade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _logoController, curve: Curves.easeIn),
+    _logoController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
     );
+    _logoFade = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _logoController, curve: Curves.easeIn));
 
     // Image slide animation
-    _imageController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 2));
+    _imageController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    );
 
     _leftImageSlide = Tween<Offset>(
       begin: const Offset(-1.5, 0),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _imageController, curve: Curves.easeOut),
-    );
+    ).animate(CurvedAnimation(parent: _imageController, curve: Curves.easeOut));
 
     _rightImageSlide = Tween<Offset>(
       begin: const Offset(1.5, 0),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _imageController, curve: Curves.easeOut),
-    );
+    ).animate(CurvedAnimation(parent: _imageController, curve: Curves.easeOut));
 
     // Progress animation
-    _progressController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 3));
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    );
 
     _progressAnim = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
@@ -71,9 +73,7 @@ class _SplashScreenState extends State<SplashScreen>
     Timer(const Duration(seconds: 4), () {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => const MainNavScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const MainNavScreen()),
       );
     });
   }
@@ -97,14 +97,10 @@ class _SplashScreenState extends State<SplashScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-
             /// 🔥 LOGO FADE
             FadeTransition(
               opacity: _logoFade,
-              child: Image.asset(
-                'assets/images/logo.png',
-                height: 140,
-              ),
+              child: Image.asset('assets/images/logo.png', height: 140),
             ),
 
             const SizedBox(height: 20),
@@ -133,7 +129,7 @@ class _SplashScreenState extends State<SplashScreen>
                     position: _leftImageSlide,
                     child: Image.asset(
                       'assets/images/beef_samosa.jpeg',
-                      width: screenWidth * 0.3,
+                      width: screenWidth * 0.5,
                       fit: BoxFit.contain,
                     ),
                   ),
@@ -143,7 +139,7 @@ class _SplashScreenState extends State<SplashScreen>
                   child: SlideTransition(
                     position: _rightImageSlide,
                     child: Image.asset(
-                      'assets/images/chicken_samosa.jpeg',
+                      'assets/images/chicken_samosa.png',
                       width: screenWidth * 0.3,
                       fit: BoxFit.contain,
                     ),
@@ -164,12 +160,13 @@ class _SplashScreenState extends State<SplashScreen>
                       value: _progressAnim.value,
                       minHeight: 6,
                       backgroundColor: Colors.white24,
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Colors.white,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      "Loading... ${( _progressAnim.value * 100).toInt()}%",
+                      "Loading... ${(_progressAnim.value * 100).toInt()}%",
                       style: const TextStyle(color: Colors.white70),
                     ),
                   ],

@@ -2,19 +2,13 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'phone_utils.dart';
+
 /// Prefilled WhatsApp URLs can be truncated on some devices past ~1–2k chars.
 const int _maxWhatsAppPrefillChars = 1000;
 
 /// Converts phone to WhatsApp format (e.g. 0712345678 -> 254712345678)
-String normalizePhoneForWhatsApp(String phone) {
-  String digits = phone.replaceAll(RegExp(r'\D'), '');
-  if (digits.startsWith('0')) {
-    digits = '254${digits.substring(1)}';
-  } else if (!digits.startsWith('254')) {
-    digits = '254$digits';
-  }
-  return digits;
-}
+String normalizePhoneForWhatsApp(String phone) => normalizePhoneKey(phone);
 
 String _clipPrefill(String? message) {
   if (message == null || message.isEmpty) return '';

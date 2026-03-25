@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/whatsapp_helper.dart';
 import '../database/app_database.dart';
 import '../providers/unpaid_provider.dart';
+import '../services/mpesa_api_service.dart';
 
 class UnpaidScreen extends ConsumerStatefulWidget {
   const UnpaidScreen({super.key});
@@ -42,6 +45,173 @@ class _UnpaidScreenState extends ConsumerState<UnpaidScreen> {
       _nameController.clear();
       _amountController.clear();
       _notesController.clear();
+    }
+  }
+
+  Future<void> _collectMpesa(UnpaidRecord record) async {
+    final phoneController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Collect via M-Pesa'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${record.customerName} — KES ${record.amount.toStringAsFixed(0)}',
+                style: Theme.of(ctx).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'M-Pesa phone number',
+                  hintText: '0712 345 678',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+                validator: (v) =>
+                    (v?.trim().isEmpty ?? true) ? 'Enter phone number' : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: const Text('Send request'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed != true || !mounted) {
+      phoneController.dispose();
+      return;
+    }
+
+    final phone = phoneController.text.trim();
+    phoneController.dispose();
+
+    final api = MpesaApiService();
+    String? checkoutId;
+
+    try {
+      final init = await api.initiateStk(
+        amount: record.amount,
+        phone: phone,
+        reference: 'unpaid_${record.id}',
+      );
+      checkoutId = init.checkoutRequestId;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('M-Pesa: ${e.toString().replaceFirst('Exception: ', '')}')),
+        );
+      }
+      return;
+    }
+
+    if (checkoutId == null || !mounted) return;
+
+    bool cancelled = false;
+    if (mounted) {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Waiting for payment'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Enter your M-Pesa PIN on your phone.',
+                style: Theme.of(ctx).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                cancelled = true;
+                Navigator.pop(ctx);
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Timer? pollTimer;
+    const interval = Duration(seconds: 2);
+    const maxAttempts = 60;
+    var attempts = 0;
+
+    void stopPolling() {
+      pollTimer?.cancel();
+      pollTimer = null;
+    }
+
+    final completer = Completer<String?>();
+    pollTimer = Timer.periodic(interval, (t) async {
+      if (cancelled || attempts >= maxAttempts) {
+        stopPolling();
+        if (!completer.isCompleted) completer.complete(null);
+        return;
+      }
+      attempts++;
+      try {
+        final status = await api.getStatus(checkoutId!);
+        if (status.status == 'completed') {
+          stopPolling();
+          if (!completer.isCompleted) completer.complete('completed');
+        } else if (status.status == 'failed') {
+          stopPolling();
+          if (!completer.isCompleted) completer.complete('failed');
+        }
+      } catch (_) {
+        // Keep polling on network error
+      }
+    });
+
+    final result = await completer.future;
+
+    if (mounted) Navigator.of(context).pop();
+
+    if (result == 'completed') {
+      final markPaid = ref.read(markPaidProvider);
+      await markPaid(record.id);
+      ref.invalidate(unpaidRecordsProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('M-Pesa payment received. Marked as paid.')),
+        );
+      }
+    } else if (result == 'failed' && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('M-Pesa payment failed.')),
+      );
+    } else if (cancelled && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cancelled')),
+      );
     }
   }
 
@@ -232,11 +402,19 @@ class _UnpaidScreenState extends ConsumerState<UnpaidScreen> {
                                       ),
                                     ),
                                     IconButton(
+                                      icon: const Icon(Icons.phone_android),
+                                      onPressed: () => _collectMpesa(r),
+                                      tooltip: 'Collect via M-Pesa',
+                                      style: IconButton.styleFrom(
+                                        foregroundColor: Colors.teal,
+                                      ),
+                                    ),
+                                    IconButton(
                                       icon: const Icon(
                                         Icons.check_circle_outline,
                                       ),
                                       onPressed: () => _markAsPaid(r),
-                                      tooltip: 'Mark as paid',
+                                      tooltip: 'Mark as paid (cash)',
                                     ),
                                   ],
                                 ),
