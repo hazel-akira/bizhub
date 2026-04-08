@@ -4,7 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/whatsapp_helper.dart';
 import '../database/app_database.dart';
+import '../providers/dashboard_provider.dart';
 import '../providers/customers_provider.dart';
+import '../providers/sales_provider.dart';
+import '../providers/unpaid_customers_provider.dart';
+import 'orders_screen.dart';
+import 'unpaid_customers_screen.dart';
 
 class CustomersScreen extends ConsumerStatefulWidget {
   const CustomersScreen({super.key});
@@ -17,6 +22,228 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+
+  Future<void> _showAddUnpaidSaleSheet() async {
+    final qtyCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
+    final scrollController = ScrollController();
+    int? selectedCustomerId;
+    bool isSaving = false;
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (ctx) {
+          final customersAsync = ref.watch(customersProvider);
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: customersAsync.when(
+                data: (customers) {
+                  final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+                  return StatefulBuilder(
+                    builder: (ctx, setLocal) {
+                      void scrollToTop() {
+                        Future.delayed(const Duration(milliseconds: 80), () {
+                          if (!scrollController.hasClients) return;
+                          scrollController.animateTo(
+                            scrollController.position.maxScrollExtent,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                          );
+                        });
+                      }
+
+                      return SingleChildScrollView(
+                        controller: scrollController,
+                        padding: EdgeInsets.only(bottom: bottomInset),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Add Sale (Unpaid)',
+                              style: Theme.of(ctx).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 12),
+                            if (selectedCustomerId == null &&
+                                customers.isNotEmpty)
+                              Builder(
+                                builder: (ctx) {
+                                  WidgetsBinding.instance.addPostFrameCallback(
+                                    (_) => setLocal(
+                                      () => selectedCustomerId =
+                                          customers.first.id,
+                                    ),
+                                  );
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+                            DropdownButtonFormField<int?>(
+                              key: ValueKey(selectedCustomerId),
+                              initialValue: selectedCustomerId,
+                              decoration: const InputDecoration(
+                                labelText: 'Customer',
+                              ),
+                              items: customers
+                                  .map(
+                                    (c) => DropdownMenuItem<int?>(
+                                      value: c.id,
+                                      child: Text(c.name),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) =>
+                                  setLocal(() => selectedCustomerId = v),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: qtyCtrl,
+                              onTap: scrollToTop,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    signed: false,
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'Quantity',
+                                hintText: 'e.g. 10',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: amountCtrl,
+                              onTap: scrollToTop,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    signed: false,
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: 'Total amount (KES)',
+                                hintText: 'e.g. 400',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            FilledButton.icon(
+                              onPressed: isSaving
+                                  ? null
+                                  : () async {
+                                      final customerId = selectedCustomerId;
+                                      if (customerId == null) {
+                                        if (!ctx.mounted) return;
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Select a customer'),
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      final qtyRaw = double.tryParse(
+                                        qtyCtrl.text.trim(),
+                                      );
+                                      final qty = qtyRaw == null
+                                          ? 0
+                                          : qtyRaw.round();
+                                      final total =
+                                          double.tryParse(
+                                            amountCtrl.text.trim(),
+                                          ) ??
+                                          0;
+                                      if (qty <= 0 || total <= 0) {
+                                        if (!ctx.mounted) return;
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Enter valid quantity and amount',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      final customer = customers.firstWhere(
+                                        (c) => c.id == customerId,
+                                      );
+
+                                      final addUnpaid = ref.read(
+                                        addUnpaidSaleProvider,
+                                      );
+                                      setLocal(() => isSaving = true);
+                                      try {
+                                        await addUnpaid(
+                                          customerName: customer.name,
+                                          quantity: qty,
+                                          totalAmount: total,
+                                        );
+
+                                        ref.invalidate(allSalesProvider);
+                                        ref.invalidate(salesListItemsProvider);
+                                        ref.invalidate(unpaidCustomersProvider);
+                                        ref.invalidate(
+                                          unpaidSalesWithOutstandingProvider,
+                                        );
+                                        ref.invalidate(
+                                          unpaidCustomersDebtProvider,
+                                        );
+                                        ref.invalidate(todayStatsProvider);
+
+                                        if (!ctx.mounted) return;
+                                        Navigator.pop(ctx);
+
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Unpaid sale added'),
+                                          ),
+                                        );
+                                      } catch (e) {
+                                        if (!ctx.mounted) return;
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Failed to add unpaid sale: $e',
+                                            ),
+                                          ),
+                                        );
+                                      } finally {
+                                        if (ctx.mounted) {
+                                          setLocal(() => isSaving = false);
+                                        }
+                                      }
+                                    },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Save as Unpaid'),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(48),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Text('Error: $e'),
+              ),
+            ),
+          );
+        },
+      );
+    } finally {
+      qtyCtrl.dispose();
+      amountCtrl.dispose();
+      scrollController.dispose();
+    }
+  }
 
   @override
   void dispose() {
@@ -75,14 +302,17 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     }
 
     ref.invalidate(customersProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Customer added')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Customer added')));
     _nameController.clear();
     _phoneController.clear();
   }
 
-  Future<void> _showDuplicateCustomerDialog(Customer existing, String attemptedName) async {
+  Future<void> _showDuplicateCustomerDialog(
+    Customer existing,
+    String attemptedName,
+  ) async {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -123,9 +353,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
             children: [
               Text(
                 c.name,
-                style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  ctx,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               if (c.phone.isNotEmpty) ...[
                 const SizedBox(height: 8),
@@ -137,8 +367,8 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                 Text(
                   'No phone on file',
                   style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(ctx).colorScheme.outline,
-                      ),
+                    color: Theme.of(ctx).colorScheme.outline,
+                  ),
                 ),
               const SizedBox(height: 24),
               FilledButton.icon(
@@ -148,6 +378,19 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                 },
                 icon: const Icon(Icons.edit_outlined),
                 label: const Text('Edit'),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => OrdersScreen(initialCustomerId: c.id),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_shopping_cart),
+                label: const Text('Create verbal order'),
               ),
               const SizedBox(height: 8),
               if (c.phone.isNotEmpty)
@@ -161,7 +404,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                     if (!ctx.mounted) return;
                     if (!ok) {
                       ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(content: Text('Could not open WhatsApp')),
+                        const SnackBar(
+                          content: Text('Could not open WhatsApp'),
+                        ),
                       );
                     }
                   },
@@ -258,18 +503,14 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 
     if (dup != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'That phone is already used by "${dup.name}".',
-          ),
-        ),
+        SnackBar(content: Text('That phone is already used by "${dup.name}".')),
       );
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Customer updated')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Customer updated')));
   }
 
   Future<void> _confirmDeleteCustomer(Customer c) async {
@@ -314,9 +555,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Customer removed')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Customer removed')));
   }
 
   @override
@@ -363,8 +604,8 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                       Text(
                         'If you enter a phone, we match duplicates using the same number (e.g. 07… and 254… count as one).',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
@@ -408,6 +649,41 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _showAddUnpaidSaleSheet,
+                      icon: const Icon(Icons.add_shopping_cart),
+                      label: const Text('Add Sale (Unpaid)'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const UnpaidCustomersScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.money_off_csred_outlined),
+                      label: const Text('Unpaid Customers'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             Text(
               'Your customers',
@@ -417,8 +693,28 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
             Text(
               'Tap a customer for edit, delete, or WhatsApp.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Consumer(
+              builder: (context, ref, _) {
+                final unpaidAsync = ref.watch(unpaidCustomersProvider);
+                return unpaidAsync.when(
+                  data: (list) => list.isEmpty
+                      ? const SizedBox.shrink()
+                      : Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              'Unpaid customers: ${list.map((e) => e.name).join(', ')}',
+                            ),
+                          ),
+                        ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (e, _) => Text('Unpaid customers error: $e'),
+                );
+              },
             ),
             const SizedBox(height: 8),
             customersAsync.when(
@@ -461,8 +757,52 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                   ),
                                 ),
                                 subtitle: c.phone.isNotEmpty
-                                    ? Text(c.phone)
-                                    : const Text('No phone'),
+                                    ? Consumer(
+                                        builder: (context, ref, _) {
+                                          final bal = ref.watch(
+                                            customerBalanceProvider(c.id),
+                                          );
+                                          return bal.when(
+                                            data: (value) => Text(
+                                              '${c.phone} • Balance: KES ${value.toStringAsFixed(0)}',
+                                              style: TextStyle(
+                                                color: value > 0
+                                                    ? Theme.of(
+                                                        context,
+                                                      ).colorScheme.error
+                                                    : Colors.green,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            loading: () => Text(c.phone),
+                                            error: (e, _) => Text(c.phone),
+                                          );
+                                        },
+                                      )
+                                    : Consumer(
+                                        builder: (context, ref, _) {
+                                          final bal = ref.watch(
+                                            customerBalanceProvider(c.id),
+                                          );
+                                          return bal.when(
+                                            data: (value) => Text(
+                                              'No phone • Balance: KES ${value.toStringAsFixed(0)}',
+                                              style: TextStyle(
+                                                color: value > 0
+                                                    ? Theme.of(
+                                                        context,
+                                                      ).colorScheme.error
+                                                    : Colors.green,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            loading: () =>
+                                                const Text('No phone'),
+                                            error: (e, _) =>
+                                                const Text('No phone'),
+                                          );
+                                        },
+                                      ),
                                 trailing: const Icon(Icons.chevron_right),
                               ),
                             ),

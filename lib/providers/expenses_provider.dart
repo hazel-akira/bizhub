@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/app_database.dart';
 import 'database_provider.dart';
@@ -12,13 +13,14 @@ final allExpensesProvider = FutureProvider<List<Expense>>((ref) async {
   return db.getAllExpenses();
 });
 
-final addExpenseProvider = Provider<Future<void> Function(String, double)>((ref) {
+final addExpenseProvider = Provider<Future<void> Function(String, double, String)>((ref) {
   final db = ref.watch(databaseProvider);
-  return (name, amount) async {
+  return (name, amount, category) async {
     await db.into(db.expenses).insert(ExpensesCompanion.insert(
       name: name,
       amount: amount,
-      date: DateTime.now(),
+      category: Value(category),
+      createdAt: Value(DateTime.now()),
     ));
   };
 });

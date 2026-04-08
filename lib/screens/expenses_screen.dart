@@ -14,6 +14,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  String _category = 'daily';
 
   @override
   void dispose() {
@@ -29,7 +30,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     if (name.isEmpty || amount <= 0) return;
 
     final addExpense = ref.read(addExpenseProvider);
-    await addExpense(name, amount);
+    await addExpense(name, amount, _category);
     ref.invalidate(todayExpensesProvider);
     ref.invalidate(allExpensesProvider);
     ref.invalidate(todayStatsProvider);
@@ -103,6 +104,23 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        initialValue: _category,
+                        decoration: InputDecoration(
+                          labelText: 'Category',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'daily', child: Text('Daily')),
+                          DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) setState(() => _category = value);
+                        },
+                      ),
+                      const SizedBox(height: 16),
                       FilledButton.icon(
                         onPressed: _addExpense,
                         icon: const Icon(Icons.add),
@@ -143,7 +161,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                               margin: const EdgeInsets.only(bottom: 8),
                               child: ListTile(
                                 title: Text(e.name),
-                                subtitle: Text(_formatDate(e.date)),
+                                subtitle: Text('${e.category} • ${_formatDate(e.createdAt)}'),
                                 trailing: Text(
                                   'KES ${e.amount.toStringAsFixed(0)}',
                                   style: const TextStyle(

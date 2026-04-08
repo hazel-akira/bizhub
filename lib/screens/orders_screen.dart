@@ -6,10 +6,11 @@ import '../providers/customers_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/orders_provider.dart';
 import '../providers/sales_provider.dart';
-import '../providers/unpaid_provider.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
-  const OrdersScreen({super.key});
+  final int? initialCustomerId;
+
+  const OrdersScreen({super.key, this.initialCustomerId});
 
   @override
   ConsumerState<OrdersScreen> createState() => _OrdersScreenState();
@@ -17,54 +18,140 @@ class OrdersScreen extends ConsumerStatefulWidget {
 
 class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   int? _selectedCustomerId;
-  final _ndenguController = TextEditingController(text: '0');
-  final _meatController = TextEditingController(text: '0');
+  int _ndenguQty = 0;
+  int _meatQty = 0;
+  bool _isCreatingOrder = false;
   final _formKey = GlobalKey<FormState>();
 
   @override
+  void initState() {
+    super.initState();
+    _selectedCustomerId = widget.initialCustomerId;
+  }
+
+  @override
   void dispose() {
-    _ndenguController.dispose();
-    _meatController.dispose();
     super.dispose();
   }
 
-  Future<void> _createOrder() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<bool> _createOrder() async {
+    if (_isCreatingOrder) return false;
     final customerId = _selectedCustomerId;
     if (customerId == null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Select a customer')));
-      return;
+      return false;
     }
-    final ndengu = int.tryParse(_ndenguController.text) ?? 0;
-    final meat = int.tryParse(_meatController.text) ?? 0;
-    if (ndengu == 0 && meat == 0) {
+    if (_ndenguQty == 0 && _meatQty == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enter at least one quantity')),
       );
-      return;
+      return false;
     }
 
-    final createOrder = ref.read(createOrderProvider);
-    await createOrder(customerId, ndengu, meat);
-    ref.invalidate(pendingOrdersProvider);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Order created')));
-      _ndenguController.text = '0';
-      _meatController.text = '0';
-      _selectedCustomerId = null;
-      setState(() {});
+    setState(() => _isCreatingOrder = true);
+    try {
+      final createOrder = ref.read(createOrderProvider);
+      await createOrder(customerId, _ndenguQty, _meatQty);
+      ref.invalidate(pendingOrdersProvider);
+      ref.invalidate(pendingOrdersWithNamesProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Order created')));
+        _ndenguQty = 0;
+        _meatQty = 0;
+        _selectedCustomerId = null;
+        setState(() {});
+      }
+      return true;
+    } finally {
+      if (mounted) {
+        setState(() => _isCreatingOrder = false);
+      }
     }
   }
 
+  Future<void> _showCreateOrderSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        final customersAsync = ref.watch(customersProvider);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: customersAsync.when(
+              data: (customers) => Form(
+                key: _formKey,
+                child: StatefulBuilder(
+                  builder: (context, setModalState) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<int>(
+                        initialValue: _selectedCustomerId,
+                        decoration: const InputDecoration(labelText: 'Customer'),
+                        items: customers
+                            .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
+                            .toList(),
+                        onChanged: (v) {
+                          setModalState(() => _selectedCustomerId = v);
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _QtySelector(
+                        label: 'Ndengu',
+                        value: _ndenguQty,
+                        onChanged: (v) {
+                          setModalState(() => _ndenguQty = v);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      _QtySelector(
+                        label: 'Meat',
+                        value: _meatQty,
+                        onChanged: (v) {
+                          setModalState(() => _meatQty = v);
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: _isCreatingOrder
+                            ? null
+                            : () async {
+                                final created = await _createOrder();
+                                if (!created) return;
+                                if (!ctx.mounted) return;
+                                Navigator.pop(ctx);
+                              },
+                        child: _isCreatingOrder
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Create Order'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Text('Error: $e'),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _onBought(Order order, String customerName) async {
-    final paid = await showDialog<bool>(
+    final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Bought'),
+        title: const Text('Mark as served'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,36 +166,33 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 16),
-            const Text('Have they paid?'),
+            const Text('This will convert order to sale.'),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Not paid'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Paid'),
-          ),
+            child: const Text('Mark Served'),
+          )
         ],
       ),
     );
 
-    if (paid != null) {
+    if (proceed == true) {
       final fulfillOrder = ref.read(fulfillOrderProvider);
-      await fulfillOrder(order.id, paid);
+      await fulfillOrder(order.id);
       ref.invalidate(pendingOrdersProvider);
       ref.invalidate(pendingOrdersWithNamesProvider);
-      ref.invalidate(unpaidRecordsProvider);
       ref.invalidate(todaySalesProvider);
       ref.invalidate(allSalesProvider);
       ref.invalidate(todayStatsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(paid ? 'Recorded as paid' : 'Added to unpaid list'),
-          ),
+          const SnackBar(content: Text('Order converted to sale')),
         );
       }
     }
@@ -117,119 +201,25 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   @override
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(pendingOrdersWithNamesProvider);
-    final customersAsync = ref.watch(customersProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Orders'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showCreateOrderSheet,
+        icon: const Icon(Icons.add),
+        label: const Text('New Order'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Create order',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      customersAsync.when(
-                        data: (customers) {
-                          if (customers.isEmpty) {
-                            return Text(
-                              'Add customers first in the Customers tab',
-                              style: TextStyle(color: Colors.grey[600]),
-                            );
-                          }
-                          return DropdownButtonFormField<int>(
-                            initialValue: _selectedCustomerId,
-                            decoration: InputDecoration(
-                              labelText: 'Customer',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            items: customers
-                                .map(
-                                  (c) => DropdownMenuItem(
-                                    value: c.id,
-                                    child: Text(c.name),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _selectedCustomerId = v),
-                            validator: (v) =>
-                                v == null ? 'Select customer' : null,
-                          );
-                        },
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (e, _) => Text('Error: $e'),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _ndenguController,
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
-                                labelText: 'Ndengu',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _meatController,
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
-                                labelText: 'Meat',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: _createOrder,
-                        icon: const Icon(Icons.add_shopping_cart),
-                        label: const Text('Create Order'),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 8),
             Text(
-              'Pending orders (tap Bought when they buy)',
+              'Pending orders',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
@@ -264,7 +254,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                             trailing: FilledButton.icon(
                               onPressed: () => _onBought(record.$1, record.$2),
                               icon: const Icon(Icons.check_circle, size: 20),
-                              label: const Text('Bought'),
+                              label: const Text('Mark as Served'),
                             ),
                           ),
                         ),
@@ -274,6 +264,41 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               },
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Text('Error: $e'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QtySelector extends StatelessWidget {
+  final String label;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  const _QtySelector({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600))),
+            IconButton(
+              onPressed: value > 0 ? () => onChanged(value - 1) : null,
+              icon: const Icon(Icons.remove_circle_outline),
+            ),
+            Text('$value', style: Theme.of(context).textTheme.titleMedium),
+            IconButton(
+              onPressed: () => onChanged(value + 1),
+              icon: const Icon(Icons.add_circle_outline),
             ),
           ],
         ),

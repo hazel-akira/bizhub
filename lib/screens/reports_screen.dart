@@ -78,7 +78,8 @@ class ReportsScreen extends ConsumerWidget {
                             .toList(),
                       );
                     },
-                    loading: () => const Center(child: CircularProgressIndicator()),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
                     error: (e, _) => Text('Error: $e'),
                   );
                 },
@@ -92,25 +93,32 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  List<_Transaction> _mergeTransactions(List<Sale> sales, List<Expense> expenses) {
+  List<_Transaction> _mergeTransactions(
+    List<Sale> sales,
+    List<Expense> expenses,
+  ) {
     final list = <_Transaction>[];
     for (final s in sales) {
-      list.add(_Transaction(
-        date: s.date,
-        type: 'Sale',
-        description: 'Ndengu: ${s.ndenguCount}, Meat: ${s.meatCount}',
-        amount: s.totalRevenue,
-        isIncome: true,
-      ));
+      list.add(
+        _Transaction(
+          date: s.createdAt,
+          type: 'Sale',
+          description: 'Ndengu: ${s.ndenguCount}, Meat: ${s.meatCount}',
+          amount: s.totalAmount,
+          isIncome: true,
+        ),
+      );
     }
     for (final e in expenses) {
-      list.add(_Transaction(
-        date: e.date,
-        type: 'Expense',
-        description: e.name,
-        amount: e.amount,
-        isIncome: false,
-      ));
+      list.add(
+        _Transaction(
+          date: e.createdAt,
+          type: 'Expense',
+          description: e.name,
+          amount: e.amount,
+          isIncome: false,
+        ),
+      );
     }
     list.sort((a, b) => b.date.compareTo(a.date));
     return list;
@@ -135,25 +143,26 @@ class _ProfitCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: Colors.grey[700],
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(color: Colors.grey[700]),
             ),
             const SizedBox(height: 8),
             async.when(
               data: (value) => Text(
                 'KES ${value.toStringAsFixed(0)}',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: value >= 0 ? Colors.teal : Colors.red,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  color: value >= 0 ? Colors.teal : Colors.red,
+                ),
               ),
               loading: () => const SizedBox(
                 height: 24,
                 width: 24,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              error: (e, _) => Text('Error', style: TextStyle(color: Colors.red[700])),
+              error: (e, _) =>
+                  Text('Error', style: TextStyle(color: Colors.red[700])),
             ),
           ],
         ),

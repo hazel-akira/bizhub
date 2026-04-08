@@ -25,7 +25,7 @@ final createOrderProvider =
     });
 
 final fulfillOrderProvider =
-    Provider<Future<void> Function(int orderId, bool paid)>((ref) {
+    Provider<Future<void> Function(int orderId)>((ref) {
       final db = ref.watch(databaseProvider);
-      return (orderId, paid) async => db.fulfillOrder(orderId, paid);
+      return (orderId) async => db.fulfillOrder(orderId);
     });

@@ -21,6 +21,10 @@ dependencies:
   share_plus: ^10.1.2
   flutter_contacts: ^2.0.0
   http: ^1.2.0
+  flutter_local_notifications: ^21.0.0
+  timezone: ^0.11.0
+  flutter_timezone: ^5.0.2
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -42,3 +46,8 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+
+hooks:
+  user_defines:
+    sqlite3:
+      source: system

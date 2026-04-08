@@ -1,7 +1,5 @@
-import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/app_database.dart';
-import '../core/constants.dart';
 import 'database_provider.dart';
 
 final salesProvider = FutureProvider.family<List<Sale>, DateTime>((
@@ -14,7 +12,9 @@ final salesProvider = FutureProvider.family<List<Sale>, DateTime>((
 
 final todaySalesProvider = FutureProvider<List<Sale>>((ref) async {
   final db = ref.watch(databaseProvider);
-  return db.getSalesForDate(DateTime.now());
+  final sales = await db.getSalesForDate(DateTime.now());
+  // Only count completed/paid sales as "revenue".
+  return sales.where((s) => s.isPaid).toList();
 });
 
 final allSalesProvider = FutureProvider<List<Sale>>((ref) async {
@@ -22,23 +22,67 @@ final allSalesProvider = FutureProvider<List<Sale>>((ref) async {
   return db.getAllSales();
 });
 
-final addSaleProvider = Provider<Future<void> Function(DateTime, int, int)>((
-  ref,
-) {
+final salesListItemsProvider = FutureProvider<List<SaleListItem>>((ref) async {
   final db = ref.watch(databaseProvider);
-  return (date, ndenguCount, meatCount) async {
-    final totalRevenue =
-        (ndenguCount * SamosaPrices.ndenguPrice) +
-        (meatCount * SamosaPrices.meatPrice);
-    await db
-        .into(db.sales)
-        .insert(
-          SalesCompanion.insert(
-            date: date,
-            ndenguCount: Value(ndenguCount),
-            meatCount: Value(meatCount),
-            totalRevenue: Value(totalRevenue),
-          ),
-        );
+  return db.getAllSalesListItems();
+});
+
+final todaySalesListItemsProvider =
+    FutureProvider<List<SaleListItem>>((ref) async {
+  final db = ref.watch(databaseProvider);
+  return db.getSalesListItemsForDate(DateTime.now());
+});
+
+final markSalePaidProvider = Provider<Future<void> Function(int saleId)>((ref) {
+  final db = ref.watch(databaseProvider);
+  return (saleId) async {
+    final paid = await db.totalPaymentsForSale(saleId);
+    final sale = (await db.getAllSales()).firstWhere((s) => s.id == saleId);
+    if (paid < sale.totalAmount) {
+      await db.addPayment(
+        saleId: saleId,
+        amount: sale.totalAmount - paid,
+        method: 'cash',
+      );
+    }
+  };
+});
+
+final createQuickSaleProvider =
+    Provider<Future<void> Function({
+  required String customerName,
+  required int ndenguCount,
+  required int meatCount,
+  required double totalAmount,
+  required bool paid,
+})>((ref) {
+  final db = ref.watch(databaseProvider);
+  return ({
+    required customerName,
+    required ndenguCount,
+    required meatCount,
+    required totalAmount,
+    required paid,
+  }) async {
+    // Insert the sale first. For paid sales we then create a full payment,
+    // which flips `is_paid` to true via Drift logic in `addPayment()`.
+    final saleId = await db.addSaleEntry(
+      date: DateTime.now(),
+      totalRevenue: totalAmount,
+      customerName: customerName,
+      purchaseDetails: 'Quick sale',
+      isPaid: false,
+      paymentMethod: 'cash',
+      ndenguCount: ndenguCount,
+      meatCount: meatCount,
+    );
+
+    if (paid) {
+      await db.addPayment(
+        saleId: saleId,
+        amount: totalAmount,
+        method: 'cash',
+      );
+    }
   };
 });

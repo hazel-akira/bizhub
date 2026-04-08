@@ -27,3 +27,13 @@ final deleteCustomerProvider = Provider<Future<bool> Function(int id)>((ref) {
   final db = ref.watch(databaseProvider);
   return (id) => db.deleteCustomer(id);
 });
+
+final customerBalanceProvider = FutureProvider.family<double, int>((ref, customerId) async {
+  final db = ref.watch(databaseProvider);
+  return db.getCustomerBalance(customerId);
+});
+
+final unpaidCustomersProvider = FutureProvider<List<Customer>>((ref) async {
+  final db = ref.watch(databaseProvider);
+  return db.getUnpaidCustomers();
+});
