@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/business_profile_provider.dart';
 import '../providers/dashboard_provider.dart';
 import 'orders_screen.dart';
 import 'sales_screen.dart';
@@ -10,6 +11,11 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final businessProfileAsync = ref.watch(businessProfileProvider);
+    final businessName = businessProfileAsync.maybeWhen(
+      data: (profile) => profile.name.isEmpty ? 'Akira Bites' : profile.name,
+      orElse: () => 'Akira Bites',
+    );
     final statsAsync = ref.watch(todayStatsProvider);
     final performanceAsync = ref.watch(todayPerformanceProvider);
     final alertsAsync = ref.watch(dashboardAlertsProvider);
@@ -32,7 +38,7 @@ class DashboardScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Akira Bites',
+                  businessName,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),

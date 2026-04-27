@@ -4,12 +4,16 @@ class Product {
   final String name;
   final double price;
   final String? unit;
+  final String? category;
+  final String? imagePath;
 
   const Product({
     required this.id,
     required this.name,
     required this.price,
     this.unit,
+    this.category,
+    this.imagePath,
   });
 
   Product copyWith({
@@ -17,12 +21,16 @@ class Product {
     String? name,
     double? price,
     String? unit,
+    String? category,
+    String? imagePath,
   }) {
     return Product(
       id: id ?? this.id,
       name: name ?? this.name,
       price: price ?? this.price,
       unit: unit ?? this.unit,
+      category: category ?? this.category,
+      imagePath: imagePath ?? this.imagePath,
     );
   }
 
@@ -36,8 +44,10 @@ class Product {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name == other.name &&
-          price == other.price;
+          price == other.price &&
+          category == other.category &&
+          imagePath == other.imagePath;
 
   @override
-  int get hashCode => Object.hash(id, name, price);
+  int get hashCode => Object.hash(id, name, price, category, imagePath);
 }
