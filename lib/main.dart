@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/database_provider.dart';
 import 'providers/business_profile_provider.dart';
 import 'services/business_profile_service.dart';
+import 'services/group_post_reminder_service.dart';
 import 'services/sales_reminder_service.dart';
 import 'screens/assistant_screen.dart';
 import 'screens/customers_screen.dart';
@@ -96,6 +97,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
       await SalesReminderService.instance.syncDailyReminder(
         hasSalesToday: todaySales.isNotEmpty,
       );
+      await GroupPostReminderService.instance.syncDailyReminder();
     } catch (_) {
       // Ignore reminder sync failures to keep app navigation stable.
     }

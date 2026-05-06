@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/assistant_provider.dart';
+import 'daily_group_post_screen.dart';
 
 class AssistantScreen extends ConsumerStatefulWidget {
   const AssistantScreen({super.key});
@@ -96,6 +97,26 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Card(
+              child: ListTile(
+                leading: const Icon(Icons.campaign_outlined),
+                title: const Text('Daily WhatsApp group post'),
+                subtitle: const Text(
+                  'AI-style message from your numbers — copy or share to your group',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const DailyGroupPostScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
             child: Wrap(
