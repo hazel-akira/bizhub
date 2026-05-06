@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../main.dart';
+import '../services/business_profile_service.dart';
+import 'role_selection_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -19,10 +20,12 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<Offset> _leftImageSlide;
   late Animation<Offset> _rightImageSlide;
   late Animation<double> _progressAnim;
+  String _businessName = 'Akira Bites';
 
   @override
   void initState() {
     super.initState();
+    _loadBusinessName();
 
     // Logo fade animation
     _logoController = AnimationController(
@@ -70,12 +73,24 @@ class _SplashScreenState extends State<SplashScreen>
     _progressController.forward();
 
     // Navigate after animation
-    Timer(const Duration(seconds: 4), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavScreen()),
-      );
-    });
+    Timer(const Duration(seconds: 4), _routeByRole);
+  }
+
+  Future<void> _routeByRole() async {
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+    );
+  }
+
+  Future<void> _loadBusinessName() async {
+    final profile = await BusinessProfileService.instance.getProfile();
+    if (!mounted) return;
+    final name = profile.name.trim();
+    if (name.isNotEmpty) {
+      setState(() => _businessName = name);
+    }
   }
 
   @override
@@ -108,8 +123,8 @@ class _SplashScreenState extends State<SplashScreen>
             /// 🧾 APP NAME
             FadeTransition(
               opacity: _logoFade,
-              child: const Text(
-                "Akira Bites",
+              child: Text(
+                _businessName,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 28,

@@ -62,6 +62,88 @@ class BusinessAssistantService {
         '- best selling this week';
   }
 
+  /// Augmentative, data-driven copy for posting in a WhatsApp customer/community group.
+  /// Uses live sales and profit signals (no external AI API required).
+  Future<String> generateDailyWhatsappGroupMessage(String businessName) async {
+    final brand =
+        businessName.trim().isEmpty ? 'Our business' : businessName.trim();
+    final now = DateTime.now();
+    final weekday = _weekdayName(now);
+
+    final paidToday = await _paidSalesToday();
+    final qtyToday = paidToday.fold<int>(
+      0,
+      (sum, s) => sum + s.ndenguCount + s.meatCount,
+    );
+    final revenueToday =
+        paidToday.fold<double>(0, (sum, s) => sum + s.totalAmount);
+    final profitRecord = await db.getProfitRecordForDate(now);
+    final costsToday = profitRecord?.totalCosts ?? 0.0;
+    final netToday = revenueToday - costsToday;
+
+    final weekSales = await db.getSalesForWeek(now);
+    var ndenguWeek = 0;
+    var meatWeek = 0;
+    for (final s in weekSales) {
+      if (!s.isPaid) continue;
+      ndenguWeek += s.ndenguCount;
+      meatWeek += s.meatCount;
+    }
+    final bestLine = ndenguWeek + meatWeek == 0
+        ? null
+        : 'This week so far: ${ndenguWeek + meatWeek} items sold — thanks for the support!';
+
+    final buffer = StringBuffer();
+    buffer.writeln('Good $weekday everyone! 👋');
+    buffer.writeln('');
+    buffer.writeln('*$brand* — quick update:');
+    buffer.writeln('');
+
+    if (paidToday.isEmpty) {
+      buffer.writeln(
+        'We are open and taking orders today. Reply here or message us to place yours.',
+      );
+    } else {
+      buffer.writeln(
+        'Today we have served *$qtyToday* orders with revenue of *${_kes(revenueToday)}*.',
+      );
+      if (costsToday > 0) {
+        buffer.writeln(
+          netToday >= 0
+              ? 'We are tracking well after costs (*${_kes(netToday)}* net today).'
+              : 'Busy day — we are pushing hard on quality and speed for you.',
+        );
+      }
+    }
+
+    if (bestLine != null) {
+      buffer.writeln('');
+      buffer.writeln(bestLine);
+    }
+
+    buffer.writeln('');
+    buffer.writeln(
+      'Thank you for being part of our community. Orders and questions welcome anytime.',
+    );
+    buffer.writeln('');
+    buffer.writeln('— $brand');
+
+    return buffer.toString();
+  }
+
+  String _weekdayName(DateTime d) {
+    const names = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    return names[d.weekday - 1];
+  }
+
   bool _matchAny(String q, List<String> keys) {
     for (final k in keys) {
       if (q.contains(k)) return true;

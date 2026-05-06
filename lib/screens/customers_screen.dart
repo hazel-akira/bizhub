@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/whatsapp_helper.dart';
 import '../database/app_database.dart';
+import '../providers/business_profile_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/customers_provider.dart';
 import '../providers/sales_provider.dart';
@@ -396,10 +397,15 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
               if (c.phone.isNotEmpty)
                 OutlinedButton.icon(
                   onPressed: () async {
+                    final businessProfile =
+                        await ref.read(businessProfileProvider.future);
+                    final businessName = businessProfile.name.trim().isEmpty
+                        ? 'Akira Bites'
+                        : businessProfile.name.trim();
                     final ok = await openWhatsAppChat(
                       c.phone,
                       message:
-                          'Hi ${c.name}! I\'d like to place a samosa order.',
+                          'Hi ${c.name}! Thanks for choosing $businessName.',
                     );
                     if (!ctx.mounted) return;
                     if (!ok) {
