@@ -14,6 +14,15 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: 'api',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Coolify / reverse-proxy: honor X-Forwarded-* for HTTPS URLs and client IPs.
+        $middleware->trustProxies(
+            at: env('TRUSTED_PROXIES', '*'),
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO,
+        );
+
         $middleware->statefulApi();
         $middleware->alias([
             'business' => \App\Http\Middleware\EnsureBusinessAccess::class,

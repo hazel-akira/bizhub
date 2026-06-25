@@ -253,12 +253,14 @@ class BusinessApiService {
 
   Future<ApiProduct> uploadProductImage({
     required int productId,
-    required String filePath,
+    required List<int> bytes,
+    required String fileName,
   }) async {
     final json = await _api.postMultipart(
       '/api/products/$productId/image',
       fieldName: 'image',
-      filePath: filePath,
+      bytes: bytes,
+      fileName: fileName,
       auth: true,
     );
     final data = json['data'] as Map<String, dynamic>;

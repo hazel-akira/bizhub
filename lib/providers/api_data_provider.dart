@@ -204,15 +204,21 @@ final globalProductsByCategoryProvider =
 final uploadProductImageProvider = Provider<
     Future<ApiProduct> Function({
   required int productId,
-  required String filePath,
+  required List<int> bytes,
+  required String fileName,
 })>((ref) {
-  return ({required int productId, required String filePath}) async {
+  return ({
+    required int productId,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
 
     final product = await api.uploadProductImage(
       productId: productId,
-      filePath: filePath,
+      bytes: bytes,
+      fileName: fileName,
     );
 
     ref.invalidate(apiProductsProvider);

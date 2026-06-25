@@ -8,34 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('personal_access_tokens')) {
-            Schema::create('personal_access_tokens', function (Blueprint $table) {
-                $table->id();
-                $table->morphs('tokenable');
-                $table->text('name');
-                $table->string('token', 64)->unique();
-                $table->text('abilities')->nullable();
-                $table->timestamp('last_used_at')->nullable();
-                $table->timestamp('expires_at')->nullable()->index();
-                $table->timestamps();
-            });
-        }
-
-        if (Schema::hasTable('users') && ! Schema::hasColumn('users', 'remember_token')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->rememberToken()->nullable();
-            });
-        }
+        // personal_access_tokens is created by 2026_06_11_123133_create_personal_access_tokens_table.
+        // users.remember_token is included in 2026_06_11_120000_create_core_business_schema.
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('personal_access_tokens');
-
-        if (Schema::hasTable('users') && Schema::hasColumn('users', 'remember_token')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->dropColumn('remember_token');
-            });
-        }
+        //
     }
 };

@@ -97,9 +97,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       );
       if (picked == null) return;
 
+      final bytes = await picked.readAsBytes();
+      final fileName = picked.name.isNotEmpty ? picked.name : 'product.jpg';
+
       await ref.read(uploadProductImageProvider)(
         productId: product.id,
-        filePath: picked.path,
+        bytes: bytes,
+        fileName: fileName,
       );
 
       if (context.mounted) {

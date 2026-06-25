@@ -49,3 +49,7 @@ app.*.map.json
 /services/api/.env
 /services/api/storage/*.key
 /services/api/database/database.sqlite
+build/
+vendor/
+node_modules/
+.env

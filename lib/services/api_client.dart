@@ -6,6 +6,18 @@ import 'package:http/http.dart' as http;
 
 import 'api_config_service.dart';
 
+class ApiConnectionResult {
+  const ApiConnectionResult({
+    required this.ok,
+    required this.url,
+    this.message,
+  });
+
+  final bool ok;
+  final String url;
+  final String? message;
+}
+
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode, this.errors});
 
@@ -41,13 +53,53 @@ class ApiClient {
   void clearBaseUrlCache() => _cachedBaseUrl = null;
 
   Future<bool> testConnection() async {
+    final result = await testConnectionDetailed();
+    return result.ok;
+  }
+
+  Future<ApiConnectionResult> testConnectionDetailed() async {
     try {
-      final uri = Uri.parse('${await _resolveBaseUrl()}/api/health');
+      final base = await _resolveBaseUrl();
+      final uri = Uri.parse('$base/api/health');
       final response = await _client.get(uri).timeout(const Duration(seconds: 5));
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
+      if (response.statusCode == 200) {
+        return ApiConnectionResult(ok: true, url: base);
+      }
+      return ApiConnectionResult(
+        ok: false,
+        url: base,
+        message: 'Server responded ${response.statusCode} (expected 200 from /api/health)',
+      );
+    } on SocketException catch (e) {
+      final base = await _resolveBaseUrl();
+      return ApiConnectionResult(
+        ok: false,
+        url: base,
+        message: _socketHelp(base, e.message),
+      );
+    } on TimeoutException {
+      return ApiConnectionResult(
+        ok: false,
+        url: await _resolveBaseUrl(),
+        message: 'Timed out — is ./scripts/start-api.sh running?',
+      );
+    } catch (e) {
+      return ApiConnectionResult(
+        ok: false,
+        url: await _resolveBaseUrl(),
+        message: e.toString(),
+      );
     }
+  }
+
+  String _socketHelp(String url, String? detail) {
+    if (url.contains('127.0.0.1') || url.contains('localhost')) {
+      return '127.0.0.1 only works on this PC. On Android emulator use http://10.0.2.2:8000; on a phone use http://YOUR_PC_IP:8000';
+    }
+    if (detail != null && detail.isNotEmpty) {
+      return detail;
+    }
+    return 'Cannot open socket to server';
   }
 
   Future<Map<String, dynamic>> get(
@@ -87,8 +139,8 @@ class ApiClient {
   Future<Map<String, dynamic>> postMultipart(
     String path, {
     required String fieldName,
-    required String filePath,
-    String? fileName,
+    required List<int> bytes,
+    required String fileName,
     bool auth = false,
   }) async {
     try {
@@ -99,9 +151,9 @@ class ApiClient {
         request.headers['Authorization'] = 'Bearer $_token';
       }
       request.files.add(
-        await http.MultipartFile.fromPath(
+        http.MultipartFile.fromBytes(
           fieldName,
-          filePath,
+          bytes,
           filename: fileName,
         ),
       );

@@ -63,12 +63,17 @@ class _ApiConnectionCardState extends State<ApiConnectionCard> {
     });
 
     await ApiConfigService.setBaseUrl(_urlController.text);
-    final ok = await ApiClient().testConnection();
+    ApiClient().clearBaseUrlCache();
+    final result = await ApiClient().testConnectionDetailed();
 
     if (!mounted) return;
     setState(() {
       _loading = false;
-      _status = ok ? 'Connected ✓' : 'Cannot reach server ✗';
+      if (result.ok) {
+        _status = 'Connected ✓';
+      } else {
+        _status = result.message ?? 'Cannot reach server ✗';
+      }
     });
   }
 
@@ -100,7 +105,7 @@ class _ApiConnectionCardState extends State<ApiConnectionCard> {
               controller: _urlController,
               decoration: const InputDecoration(
                 labelText: 'Server URL',
-                hintText: 'https://api.example.com',
+                hintText: 'https://api.akirabites.shop',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),

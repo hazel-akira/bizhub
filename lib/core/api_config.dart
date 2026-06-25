@@ -15,7 +15,7 @@ String get defaultApiBaseUrl {
 
   if (kReleaseMode) {
     // Production builds should pass API_BASE_URL via --dart-define.
-    return 'https://api.example.com';
+    return 'https://api.akirabites.shop';
   }
 
   if (kIsWeb) {
