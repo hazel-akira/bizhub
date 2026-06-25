@@ -1,4 +1,4 @@
-package com.bizhub.samosa_tracker
+package app.akirabizhub.pos
 
 import io.flutter.embedding.android.FlutterActivity
 

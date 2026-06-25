@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/profit_tracker_provider.dart';
+import '../providers/business_profile_provider.dart';
+import '../widgets/food_only_screen.dart';
 
 class ProfitTrackerScreen extends ConsumerStatefulWidget {
   const ProfitTrackerScreen({super.key});
@@ -77,6 +79,14 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final config = ref.watch(businessTypeConfigProvider);
+    if (!config.isFoodBusiness) {
+      return const FoodOnlyScreen(
+        title: 'Profit tracker',
+        child: SizedBox.shrink(),
+      );
+    }
+
     final qty = _i(_qtyController.text);
     final pricePerSamosa = _d(_priceController.text);
 

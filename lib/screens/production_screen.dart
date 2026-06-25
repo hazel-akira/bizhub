@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/production_provider.dart';
+import '../providers/business_profile_provider.dart';
+import '../widgets/food_only_screen.dart';
 
 class ProductionScreen extends ConsumerStatefulWidget {
   const ProductionScreen({super.key});
@@ -59,6 +61,14 @@ class _ProductionScreenState extends ConsumerState<ProductionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final config = ref.watch(businessTypeConfigProvider);
+    if (!config.isFoodBusiness) {
+      return const FoodOnlyScreen(
+        title: 'Production',
+        child: SizedBox.shrink(),
+      );
+    }
+
     final selectedDate = ref.watch(selectedProductionDateProvider);
     final batchAsync = ref.watch(productionBatchProvider);
     final summaryAsync = ref.watch(productionSummaryProvider);

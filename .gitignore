@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Laravel API
+/services/api/vendor/
+/services/api/.env
+/services/api/storage/*.key
+/services/api/database/database.sqlite

@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../database/app_database.dart';
-import '../providers/sales_provider.dart';
+import '../models/api_sale.dart';
+import '../providers/api_data_provider.dart';
+import '../providers/business_api_provider.dart';
+import '../providers/business_profile_provider.dart';
 import '../providers/dashboard_provider.dart';
-import '../providers/customers_provider.dart';
-import '../providers/unpaid_customers_provider.dart';
 import '../providers/payments_provider.dart';
-import '../core/constants.dart';
-import '../services/sales_reminder_service.dart';
+import '../providers/sales_provider.dart';
+import '../providers/unpaid_customers_provider.dart';
+import '../widgets/sales/food_quick_sale_panel.dart';
+import '../widgets/sales/generic_quick_sale_panel.dart';
+import 'inventory_screen.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
   const SalesScreen({super.key});
@@ -17,21 +22,24 @@ class SalesScreen extends ConsumerStatefulWidget {
 }
 
 class _SalesScreenState extends ConsumerState<SalesScreen> {
-  static const _walkInCustomer = 'Walk-in Customer';
+  void _refreshSalesUI() {
+    ref.invalidate(todaySalesListItemsProvider);
+    ref.invalidate(allSalesProvider);
+    ref.invalidate(allPaymentsProvider);
+    ref.invalidate(todayStatsProvider);
+    ref.invalidate(todaySalesProvider);
+    ref.invalidate(unpaidCustomersDebtProvider);
+    ref.invalidate(apiSalesProvider);
+    ref.invalidate(apiTodaySalesProvider);
+    ref.invalidate(apiDashboardProvider);
+    ref.invalidate(apiProductsProvider);
+  }
 
-  String _selectedProduct = 'meat'; // meat | ndengu
-  int _quantity = 1;
-  String _selectedCustomerName = _walkInCustomer;
-  bool _paymentIsPaidChip = true;
-  bool _isSubmittingQuickSale = false;
-
-  double get _unitPrice => _selectedProduct == 'meat'
-      ? SamosaPrices.meatPrice
-      : SamosaPrices.ndenguPrice;
-
-  int get _ndenguCount => _selectedProduct == 'ndengu' ? _quantity : 0;
-  int get _meatCount => _selectedProduct == 'meat' ? _quantity : 0;
-  double get _totalAmount => _quantity * _unitPrice;
+  void _openInventory() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const InventoryScreen()),
+    );
+  }
 
   Future<void> _recordPaymentDialog(SaleListItem item) async {
     final amountCtrl =
@@ -47,7 +55,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             children: [
               TextFormField(
                 controller: amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
                   labelText: 'Payment amount',
                   prefixText: 'KES ',
@@ -84,348 +93,143 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
     if (amount <= 0) return;
     await ref.read(addPaymentProvider)(
-          saleId: item.sale.id,
-          amount: amount,
-          method: method,
-        );
+      saleId: item.sale.id,
+      amount: amount,
+      method: method,
+    );
     _refreshSalesUI();
-  }
-
-  void _refreshSalesUI() {
-    ref.invalidate(todaySalesListItemsProvider);
-    ref.invalidate(allSalesProvider);
-    ref.invalidate(allPaymentsProvider);
-    ref.invalidate(todayStatsProvider);
-    ref.invalidate(todaySalesProvider);
-    ref.invalidate(unpaidCustomersDebtProvider);
   }
 
   Future<void> _markPaidQuick(int saleId) async {
-    final markPaid = ref.read(markSalePaidProvider);
-    await markPaid(saleId);
+    await ref.read(markSalePaidProvider)(saleId);
     _refreshSalesUI();
   }
 
-  Future<void> _submitQuickSale({required bool paid}) async {
-    if (_isSubmittingQuickSale) return;
-    if (_quantity <= 0) return;
-
-    setState(() => _isSubmittingQuickSale = true);
-    try {
-      final saleTotal = _totalAmount;
-      final customerName = _selectedCustomerName.trim().isEmpty
-          ? _walkInCustomer
-          : _selectedCustomerName.trim();
-
-      await ref.read(createQuickSaleProvider)(
-        customerName: customerName,
-        ndenguCount: _ndenguCount,
-        meatCount: _meatCount,
-        totalAmount: saleTotal,
-        paid: paid,
-      );
-      try {
-        await SalesReminderService.instance
-            .syncDailyReminder(hasSalesToday: true);
-      } catch (_) {
-        // Reminder failure should never block completing a sale.
-      }
-
-      _refreshSalesUI();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(paid ? 'Sale completed' : 'Sale saved as unpaid'),
+  Widget _apiSaleTile(ApiSale sale) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        title: Text('KES ${sale.totalAmount.toStringAsFixed(0)}'),
+        subtitle: Text(sale.itemsSummary),
+        trailing: Text(
+          sale.paymentMethod.toUpperCase(),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
-      );
-      setState(() => _quantity = 1);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmittingQuickSale = false);
-      }
-    }
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final todaySalesItemsAsync = ref.watch(todaySalesListItemsProvider);
-    final customersAsync = ref.watch(customersProvider);
+    final useCloud = ref.watch(useCloudDataProvider);
+    final isFood = ref.watch(isFoodBusinessProvider);
+    final typeLabel = ref.watch(businessTypeLabelProvider);
+    final todaySalesItemsAsync = useCloud
+        ? ref.watch(apiTodaySalesProvider)
+        : ref.watch(todaySalesListItemsProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sales'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        actions: [
+          if (!isFood && useCloud)
+            IconButton(
+              onPressed: _openInventory,
+              icon: const Icon(Icons.inventory_2_outlined),
+              tooltip: 'Inventory',
+            ),
+          if (useCloud)
+            const Padding(
+              padding: EdgeInsets.only(right: 12),
+              child: Icon(Icons.cloud_done, color: Colors.green),
+            ),
+        ],
       ),
       body: todaySalesItemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (items) {
-          final recent = items.take(10).toList();
+          final recentApi = useCloud
+              ? (items as List<ApiSale>).take(10).toList()
+              : <ApiSale>[];
+          final recentLocal = useCloud
+              ? <SaleListItem>[]
+              : (items as List<SaleListItem>).take(10).toList();
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Today Quick Sale',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 12),
-
-                        DropdownButtonFormField<String>(
-                          key: ValueKey(_selectedProduct),
-                          initialValue: _selectedProduct,
-                          decoration: const InputDecoration(
-                            labelText: 'Select Product',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'meat',
-                              child: Text('Meat Samosa (KES 40)'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'ndengu',
-                              child: Text('Ndengu Samosa (KES 20)'),
-                            ),
-                          ],
-                          onChanged: _isSubmittingQuickSale
-                              ? null
-                              : (v) {
-                                  if (v == null) return;
-                                  setState(() => _selectedProduct = v);
-                                },
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                              color: Theme.of(context).dividerColor,
-                            ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Quantity',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w900),
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: _isSubmittingQuickSale
-                                      ? null
-                                      : () {
-                                          if (_quantity <= 1) return;
-                                          setState(() => _quantity--);
-                                        },
-                                  icon: const Icon(Icons.remove_circle_outline),
-                                ),
-                                Text(
-                                  '$_quantity',
-                                  style: Theme.of(context).textTheme.titleLarge,
-                                ),
-                                IconButton(
-                                  onPressed: _isSubmittingQuickSale
-                                      ? null
-                                      : () {
-                                          setState(() => _quantity++);
-                                        },
-                                  icon: const Icon(Icons.add_circle_outline),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
-                        Text(
-                          'Total: KES ${_totalAmount.toStringAsFixed(0)}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        customersAsync.when(
-                          data: (customers) {
-                            final menuItems = <DropdownMenuItem<String>>[
-                              const DropdownMenuItem(
-                                value: _walkInCustomer,
-                                child: Text(_walkInCustomer),
-                              ),
-                              ...customers.map(
-                                (c) => DropdownMenuItem<String>(
-                                  value: c.name,
-                                  child: Text(c.name),
-                                ),
-                              ),
-                            ];
-
-                            final selectedValue = menuItems.any(
-                                  (e) => e.value == _selectedCustomerName,
-                                )
-                                ? _selectedCustomerName
-                                : _walkInCustomer;
-
-                            return DropdownButtonFormField<String>(
-                              key: ValueKey(selectedValue),
-                              initialValue: selectedValue,
-                              decoration: const InputDecoration(
-                                labelText: 'Select Customer',
-                                border: OutlineInputBorder(),
-                              ),
-                              items: menuItems,
-                              onChanged: _isSubmittingQuickSale
-                                  ? null
-                                  : (v) {
-                                      if (v == null) return;
-                                      setState(() => _selectedCustomerName = v);
-                                    },
-                            );
-                          },
-                          loading: () => DropdownButtonFormField<String>(
-                            key: const ValueKey(_walkInCustomer),
-                            initialValue: _walkInCustomer,
-                            decoration: const InputDecoration(
-                              labelText: 'Select Customer',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: _walkInCustomer,
-                                child: Text(_walkInCustomer),
-                              ),
-                            ],
-                            onChanged: null,
-                          ),
-                          error: (e, _) => Text('Customer error: $e'),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        ToggleButtons(
-                          isSelected: [
-                            _paymentIsPaidChip,
-                            !_paymentIsPaidChip
-                          ],
-                          onPressed: (index) {
-                            if (_isSubmittingQuickSale) return;
-                            setState(() {
-                              _paymentIsPaidChip = index == 0;
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          children: const [
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 18),
-                              child: Text('Paid'),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 18),
-                              child: Text('Unpaid'),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 14),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: _isSubmittingQuickSale
-                                    ? null
-                                    : () async {
-                                        setState(() => _paymentIsPaidChip = true);
-                                        await _submitQuickSale(paid: true);
-                                      },
-                                icon: const Icon(Icons.check_circle),
-                                label: const Text('Complete Sale (Paid)'),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _isSubmittingQuickSale
-                                    ? null
-                                    : () async {
-                                        setState(() => _paymentIsPaidChip = false);
-                                        await _submitQuickSale(paid: false);
-                                      },
-                                icon: const Icon(Icons.money_off_csred_outlined),
-                                label: const Text('Save as Unpaid'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                if (typeLabel != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Chip(
+                      avatar: Icon(
+                        isFood ? Icons.restaurant : Icons.storefront,
+                        size: 18,
+                      ),
+                      label: Text(typeLabel),
+                      visualDensity: VisualDensity.compact,
                     ),
                   ),
-                ),
-
+                if (isFood)
+                  FoodQuickSalePanel(onSaleRecorded: _refreshSalesUI)
+                else
+                  GenericQuickSalePanel(
+                    onSaleRecorded: _refreshSalesUI,
+                    onManageInventory: _openInventory,
+                  ),
                 const SizedBox(height: 16),
-
                 Text(
-                  'Recent Sales',
+                  'Recent sales',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
                 ),
                 const SizedBox(height: 8),
-
-                if (recent.isEmpty)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'No sales yet',
-                        style: TextStyle(color: Colors.grey[700]),
+                if (useCloud) ...[
+                  if (recentApi.isEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'No sales yet today',
+                          style: TextStyle(color: Colors.grey[700]),
+                        ),
                       ),
+                    )
+                  else
+                    Column(children: recentApi.map(_apiSaleTile).toList()),
+                ] else ...[
+                  if (recentLocal.isEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'No sales yet',
+                          style: TextStyle(color: Colors.grey[700]),
+                        ),
+                      ),
+                    )
+                  else
+                    Column(
+                      children: recentLocal
+                          .map(
+                            (i) => _SaleCard(
+                              item: i,
+                              onRecordPayment: !i.sale.isPaid
+                                  ? () => _recordPaymentDialog(i)
+                                  : null,
+                              onMarkPaid: !i.sale.isPaid
+                                  ? () => _markPaidQuick(i.sale.id)
+                                  : null,
+                            ),
+                          )
+                          .toList(),
                     ),
-                  )
-                else
-                  Column(
-                    children: recent
-                        .map(
-                          (i) => _SaleCard(
-                            item: i,
-                            onRecordPayment:
-                                !i.sale.isPaid ? () => _recordPaymentDialog(i) : null,
-                            onMarkPaid:
-                                !i.sale.isPaid ? () => _markPaidQuick(i.sale.id) : null,
-                          ),
-                        )
-                        .toList(),
-                  ),
+                ],
               ],
             ),
           );
@@ -436,15 +240,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 }
 
 class _SaleCard extends StatelessWidget {
-  final SaleListItem item;
-  final VoidCallback? onRecordPayment;
-  final VoidCallback? onMarkPaid;
-
   const _SaleCard({
     required this.item,
     this.onRecordPayment,
     this.onMarkPaid,
   });
+
+  final SaleListItem item;
+  final VoidCallback? onRecordPayment;
+  final VoidCallback? onMarkPaid;
 
   @override
   Widget build(BuildContext context) {
@@ -487,7 +291,8 @@ class _SaleCard extends StatelessWidget {
                       ? const Color(0xFFE8F5E9)
                       : const Color(0xFFFFEBEE),
                   labelStyle: TextStyle(
-                    color: sale.isPaid ? Colors.green.shade800 : Colors.red.shade800,
+                    color:
+                        sale.isPaid ? Colors.green.shade800 : Colors.red.shade800,
                     fontWeight: FontWeight.w700,
                   ),
                 ),

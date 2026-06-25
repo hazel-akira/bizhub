@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../database/app_database.dart';
+import '../models/api_expense.dart';
+import '../providers/api_data_provider.dart';
+import '../providers/business_api_provider.dart';
 import '../providers/expenses_provider.dart';
 import '../providers/dashboard_provider.dart';
 
@@ -29,10 +33,15 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     final amount = double.tryParse(_amountController.text) ?? 0;
     if (name.isEmpty || amount <= 0) return;
 
-    final addExpense = ref.read(addExpenseProvider);
-    await addExpense(name, amount, _category);
-    ref.invalidate(todayExpensesProvider);
-    ref.invalidate(allExpensesProvider);
+    final useCloud = ref.read(useCloudDataProvider);
+    if (useCloud) {
+      await ref.read(createApiExpenseProvider)(name, amount);
+    } else {
+      final addExpense = ref.read(addExpenseProvider);
+      await addExpense(name, amount, _category);
+      ref.invalidate(todayExpensesProvider);
+      ref.invalidate(allExpensesProvider);
+    }
     ref.invalidate(todayStatsProvider);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -45,12 +54,22 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final expensesAsync = ref.watch(todayExpensesProvider);
+    final useCloud = ref.watch(useCloudDataProvider);
+    final expensesAsync = useCloud
+        ? ref.watch(apiTodayExpensesProvider)
+        : ref.watch(todayExpensesProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Expenses'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        actions: [
+          if (useCloud)
+            const Padding(
+              padding: EdgeInsets.only(right: 12),
+              child: Icon(Icons.cloud_done, color: Colors.green),
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -155,24 +174,45 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                       ),
                     )
                   : Column(
-                      children: expenses
-                          .map(
-                            (e) => Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                title: Text(e.name),
-                                subtitle: Text('${e.category} • ${_formatDate(e.createdAt)}'),
-                                trailing: Text(
-                                  'KES ${e.amount.toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.orange,
+                      children: useCloud
+                          ? (expenses as List<ApiExpense>)
+                              .map(
+                                (e) => Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    title: Text(e.title),
+                                    subtitle: Text(_formatDate(e.expenseDate)),
+                                    trailing: Text(
+                                      'KES ${e.amount.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.orange,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          )
-                          .toList(),
+                              )
+                              .toList()
+                          : (expenses as List<Expense>)
+                              .map(
+                                (e) => Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    title: Text(e.name),
+                                    subtitle: Text(
+                                      '${e.category} • ${_formatDate(e.createdAt)}',
+                                    ),
+                                    trailing: Text(
+                                      'KES ${e.amount.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.orange,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
                     ),
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Text('Error: $e'),

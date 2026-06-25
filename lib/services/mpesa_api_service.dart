@@ -30,8 +30,7 @@ class StkStatusResult {
 
 /// Calls the M-Pesa bridge API.
 class MpesaApiService {
-  MpesaApiService({String? baseUrl})
-      : _baseUrl = baseUrl ?? mpesaApiBaseUrl;
+  MpesaApiService({String? baseUrl}) : _baseUrl = baseUrl ?? apiBaseUrl;
 
   final String _baseUrl;
 

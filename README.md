@@ -59,14 +59,46 @@ flutter run
 
 ---
 
-## M-Pesa (STK Push)
+## Laravel API (PostgreSQL)
 
-To collect payments via M-Pesa from the **Haven't paid** screen:
+The backend API lives in [`services/api/`](services/api/). It powers auth, the web client, and M-Pesa.
 
-1. Start the M-Pesa bridge: `cd services/mpesa-bridge && php artisan serve --port=8000`
-2. Configure Daraja credentials in `services/mpesa-bridge/.env` (see [README](services/mpesa-bridge/README.md))
-3. Use ngrok for Safaricom callbacks when testing locally
-4. Set `mpesaApiBaseUrl` in `lib/core/constants.dart` for your setup (emulator vs device)
+**Start the API** (always run this before using the Flutter app):
+
+```bash
+./scripts/start-api.sh
+```
+
+Verify: open http://127.0.0.1:8000/api/health — should return `{"ok":true,...}`.
+
+**Flutter app:** on the login screen, use **API connection → Test**. Default URLs:
+- Linux desktop: `http://127.0.0.1:8000`
+- Android emulator: `http://10.0.2.2:8000`
+- Physical phone: `http://YOUR_PC_LAN_IP:8000`
+
+See [`services/api/README.md`](services/api/README.md) for database setup and endpoints.
+
+---
+
+## Android release build (Play Store)
+
+1. Copy signing template:
+
+```bash
+cp android/key.properties.example android/key.properties
+```
+
+2. Edit `android/key.properties` with your real upload keystore values.
+3. Build with production API URL:
+
+```bash
+flutter build appbundle --release --dart-define=API_BASE_URL=https://YOUR_API_DOMAIN
+```
+
+Notes:
+- Release builds require `android/key.properties`.
+- Production endpoint should be HTTPS.
+- In release mode, API connection override is disabled in-app.
 
 ---
 
