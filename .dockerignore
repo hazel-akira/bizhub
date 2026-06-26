@@ -1,0 +1,26 @@
+# Flutter web image — keep build context small
+.git
+.github
+.idea
+.vscode
+.cursor
+
+# Local / CI build output
+build/
+.dart_tool/
+.packages
+
+# Mobile — not needed for web image
+android/
+ios/
+linux/
+macos/
+windows/
+
+# Backend is a separate Coolify app
+services/
+
+# Docs & misc
+*.md
+!README.md
+akira_bites_client/
