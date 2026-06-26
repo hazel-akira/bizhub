@@ -35,6 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     supervisor \
     curl \
     postgresql-client \
+    libpq5 \
+    libzip4 \
     libpq-dev \
     libzip-dev \
     && docker-php-ext-install -j"$(nproc)" \
@@ -43,7 +45,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         pdo_pgsql \
         zip \
         bcmath \
-    && apt-get purge -y --auto-remove libpq-dev libzip-dev \
+    && apt-get purge -y libpq-dev libzip-dev \
     && rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/99-laravel.ini
