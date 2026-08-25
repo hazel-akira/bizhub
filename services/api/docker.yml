@@ -1,5 +1,5 @@
-# DEPRECATED — use Dockerfile for production (Coolify).
-# This file is kept for quick local container testing with `artisan serve`.
+# DEPRECATED — local container testing with artisan serve.
+# Production uses Dockerfile (Fly.io). See ../../DEPLOY.md
 
 FROM php:8.3-cli
 

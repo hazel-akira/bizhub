@@ -45,4 +45,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(Order::class);
     }
+
+    public function sales(): HasMany
+    {
+        return $this->hasMany(Sale::class);
+    }
+
+    public function mpesaTransactions(): HasMany
+    {
+        return $this->hasMany(MpesaTransaction::class);
+    }
 }

@@ -105,35 +105,47 @@ class ApiClient {
   Future<Map<String, dynamic>> get(
     String path, {
     bool auth = false,
+    Duration? timeout,
   }) async {
-    return _decode(await _send(() async => _client.get(
-          await _uri(path),
-          headers: _headers(auth: auth),
-        )));
+    return _decode(await _send(
+      () async => _client.get(
+        await _uri(path),
+        headers: _headers(auth: auth),
+      ),
+      timeout: timeout,
+    ));
   }
 
   Future<Map<String, dynamic>> post(
     String path, {
     Map<String, dynamic>? body,
     bool auth = false,
+    Duration? timeout,
   }) async {
-    return _decode(await _send(() async => _client.post(
-          await _uri(path),
-          headers: _headers(auth: auth),
-          body: body == null ? null : jsonEncode(body),
-        )));
+    return _decode(await _send(
+      () async => _client.post(
+        await _uri(path),
+        headers: _headers(auth: auth),
+        body: body == null ? null : jsonEncode(body),
+      ),
+      timeout: timeout,
+    ));
   }
 
   Future<Map<String, dynamic>> put(
     String path, {
     Map<String, dynamic>? body,
     bool auth = false,
+    Duration? timeout,
   }) async {
-    return _decode(await _send(() async => _client.put(
-          await _uri(path),
-          headers: _headers(auth: auth),
-          body: body == null ? null : jsonEncode(body),
-        )));
+    return _decode(await _send(
+      () async => _client.put(
+        await _uri(path),
+        headers: _headers(auth: auth),
+        body: body == null ? null : jsonEncode(body),
+      ),
+      timeout: timeout,
+    ));
   }
 
   Future<Map<String, dynamic>> postMultipart(
@@ -193,11 +205,12 @@ class ApiClient {
   }
 
   Future<http.Response> _send(
-    Future<http.Response> Function() request,
-  ) async {
+    Future<http.Response> Function() request, {
+    Duration? timeout,
+  }) async {
     try {
       return await request().timeout(
-        _timeout,
+        timeout ?? _timeout,
         onTimeout: () {
           throw ApiException(
             'Request timed out. Tap "Test" on the login screen to check the API.',

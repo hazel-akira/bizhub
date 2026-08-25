@@ -2,167 +2,324 @@
 
 namespace App\Services;
 
+use App\Enums\MpesaAccountType;
+use App\Enums\MpesaTransactionStatus;
+use App\Events\MpesaPaymentReceived;
+use App\Models\Business;
+use App\Models\MpesaConfig;
 use App\Models\MpesaTransaction;
 use App\Models\Order;
+use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class MpesaService
 {
-    public function initiateStkForOrder(Order $order): MpesaTransaction
-    {
-        $checkoutRequestId = 'ws_CO_'.Str::uuid();
+    public function initiateStkPush(
+        Business $business,
+        float $amount,
+        string $phone,
+        ?string $reference = null,
+        ?array $items = null,
+        ?User $user = null,
+    ): MpesaTransaction {
+        $config = $this->requireConfig($business);
 
         $transaction = MpesaTransaction::create([
-            'order_id' => $order->id,
-            'reference' => 'ORDER-'.$order->id,
-            'phone' => $order->phone_number,
-            'amount' => $order->total_amount,
-            'checkout_request_id' => $checkoutRequestId,
-            'status' => 'processing',
+            'business_id' => $business->id,
+            'user_id' => $user?->id,
+            'reference' => $reference ?: 'BIZ-'.$business->id.'-'.now()->format('YmdHis'),
+            'phone' => $this->normalizePhone($phone),
+            'amount' => (int) round($amount),
+            'checkout_request_id' => 'pending_'.Str::uuid(),
+            'status' => MpesaTransactionStatus::Pending,
+            'metadata' => $items ? ['items' => $items] : null,
         ]);
 
-        $order->update([
-            'checkout_request_id' => $checkoutRequestId,
-            'payment_status' => 'pending',
-        ]);
-
-        if ($this->isConfigured()) {
-            $this->sendDarajaStkPush($transaction);
-        } elseif (app()->environment('local')) {
-            // Local dev: auto-complete after a short delay via callback simulation.
-            $transaction->update([
-                'status' => 'processing',
-                'result_description' => 'Awaiting M-Pesa confirmation (configure Daraja for live STK).',
-            ]);
-        }
+        $this->sendDarajaStkPush($transaction, $config);
 
         return $transaction->fresh();
     }
 
-    public function initiateStk(float $amount, string $phone, string $reference): array
+    public function initiateStkForOrder(Order $order): MpesaTransaction
     {
-        $checkoutRequestId = 'ws_CO_'.Str::uuid();
+        $business = $order->items()->with('product.business')->first()?->product?->business
+            ?? $order->user?->business;
 
-        $transaction = MpesaTransaction::create([
-            'reference' => $reference,
-            'phone' => $phone,
-            'amount' => (int) round($amount),
-            'checkout_request_id' => $checkoutRequestId,
-            'status' => 'processing',
-        ]);
-
-        if ($this->isConfigured()) {
-            $this->sendDarajaStkPush($transaction);
+        if (! $business) {
+            throw ValidationException::withMessages([
+                'order_id' => ['This order is not linked to a business with M-Pesa.'],
+            ]);
         }
 
+        $transaction = $this->initiateStkPush(
+            $business,
+            (float) $order->total_amount,
+            $order->phone_number,
+            'ORDER-'.$order->id,
+            null,
+            $order->user,
+        );
+
+        $transaction->update(['order_id' => $order->id]);
+
+        $order->update([
+            'checkout_request_id' => $transaction->checkout_request_id,
+            'payment_status' => 'pending',
+        ]);
+
+        return $transaction->fresh();
+    }
+
+    /** @deprecated Use initiateStkPush() — kept for unpaid-screen compatibility */
+    public function initiateStk(float $amount, string $phone, string $reference, ?User $user = null): array
+    {
+        $business = $user?->business;
+        if (! $business) {
+            throw ValidationException::withMessages([
+                'phone' => ['Sign in to a business before collecting M-Pesa.'],
+            ]);
+        }
+
+        $transaction = $this->initiateStkPush($business, $amount, $phone, $reference, null, $user);
+
         return [
-            'checkout_request_id' => $checkoutRequestId,
-            'status' => 'processing',
+            'checkout_request_id' => $transaction->checkout_request_id,
+            'status' => $transaction->status?->value ?? MpesaTransactionStatus::Pending->value,
         ];
     }
 
-    public function getStatus(string $checkoutRequestId): ?MpesaTransaction
+    public function getStatus(string $checkoutRequestId, ?int $businessId = null): ?MpesaTransaction
     {
-        return MpesaTransaction::where('checkout_request_id', $checkoutRequestId)->first();
+        $query = MpesaTransaction::query()->where('checkout_request_id', $checkoutRequestId);
+
+        if ($businessId !== null) {
+            $query->forBusiness($businessId);
+        }
+
+        return $query->first();
+    }
+
+    public function upsertConfig(Business $business, array $data): MpesaConfig
+    {
+        $config = $business->mpesaConfig ?? new MpesaConfig(['business_id' => $business->id]);
+
+        if (array_key_exists('shortcode', $data) && filled($data['shortcode'])) {
+            $config->shortcode = $data['shortcode'];
+        }
+        if (array_key_exists('account_type', $data) && filled($data['account_type'])) {
+            $config->account_type = MpesaAccountType::from($data['account_type']);
+        }
+        foreach (['consumer_key', 'consumer_secret', 'passkey'] as $secret) {
+            if (array_key_exists($secret, $data) && filled($data[$secret])) {
+                $config->{$secret} = $data[$secret];
+            }
+        }
+
+        $config->save();
+        Cache::forget($this->tokenCacheKey($business->id));
+
+        return $config->fresh();
     }
 
     public function handleCallback(array $payload): void
     {
-        $body = $payload['Body']['stkCallback'] ?? null;
+        $body = data_get($payload, 'Body.stkCallback');
         if (! is_array($body)) {
             return;
         }
 
         $checkoutRequestId = $body['CheckoutRequestID'] ?? null;
-        if (! $checkoutRequestId) {
-            return;
-        }
+        $merchantRequestId = $body['MerchantRequestID'] ?? null;
 
-        $transaction = MpesaTransaction::where('checkout_request_id', $checkoutRequestId)->first();
+        $transaction = null;
+        if (filled($checkoutRequestId)) {
+            $transaction = MpesaTransaction::where('checkout_request_id', $checkoutRequestId)->first();
+        }
+        if (! $transaction && filled($merchantRequestId)) {
+            $transaction = MpesaTransaction::where('merchant_request_id', $merchantRequestId)->first();
+        }
         if (! $transaction) {
             return;
         }
 
         $resultCode = (int) ($body['ResultCode'] ?? 1);
-        $resultDesc = $body['ResultDesc'] ?? 'Unknown result';
+        $resultDesc = is_string($body['ResultDesc'] ?? null) ? $body['ResultDesc'] : 'Unknown result';
 
         if ($resultCode === 0) {
-            $receipt = null;
-            foreach ($body['CallbackMetadata']['Item'] ?? [] as $item) {
-                if (($item['Name'] ?? '') === 'MpesaReceiptNumber') {
-                    $receipt = $item['Value'] ?? null;
-                }
-            }
+            $receipt = $this->callbackMetadataValue($body, 'MpesaReceiptNumber');
 
             $transaction->update([
-                'status' => 'paid',
-                'mpesa_receipt_number' => $receipt,
+                'status' => MpesaTransactionStatus::Completed,
+                'mpesa_receipt_number' => $receipt !== null ? (string) $receipt : null,
                 'result_description' => $resultDesc,
             ]);
 
             if ($transaction->order_id) {
                 $transaction->order?->update([
                     'payment_status' => 'paid',
-                    'mpesa_receipt' => $receipt,
+                    'mpesa_receipt' => $transaction->mpesa_receipt_number,
                 ]);
             }
+
+            MpesaPaymentReceived::dispatch($transaction->fresh());
 
             return;
         }
 
         $transaction->update([
-            'status' => 'failed',
+            'status' => MpesaTransactionStatus::Failed,
             'result_description' => $resultDesc,
         ]);
 
         $transaction->order?->update(['payment_status' => 'failed']);
     }
 
-    private function isConfigured(): bool
+    private function requireConfig(Business $business): MpesaConfig
     {
-        return filled(config('services.mpesa.consumer_key'))
-            && filled(config('services.mpesa.consumer_secret'))
-            && filled(config('services.mpesa.shortcode'))
-            && filled(config('services.mpesa.passkey'));
+        $config = $business->mpesaConfig;
+        if (! $config?->isReady()) {
+            throw ValidationException::withMessages([
+                'mpesa' => ['M-Pesa is not configured for this business. Add Till or Paybill credentials in Settings.'],
+            ]);
+        }
+
+        return $config;
     }
 
-    private function sendDarajaStkPush(MpesaTransaction $transaction): void
+    private function sendDarajaStkPush(MpesaTransaction $transaction, MpesaConfig $config): void
     {
-        $token = $this->getAccessToken();
-        $timestamp = now()->format('YmdHis');
-        $password = base64_encode(
-            config('services.mpesa.shortcode').config('services.mpesa.passkey').$timestamp
-        );
-
+        $token = $this->getAccessToken($config);
+        $timestamp = now('Africa/Nairobi')->format('YmdHis');
+        $password = base64_encode($config->shortcode.$config->passkey.$timestamp);
         $phone = $this->normalizePhone($transaction->phone);
+        $accountType = $config->account_type ?? MpesaAccountType::Paybill;
 
-        Http::withToken($token)
+        $response = Http::timeout(30)
+            ->withToken($token)
+            ->acceptJson()
+            ->asJson()
             ->post(config('services.mpesa.base_url').'/mpesa/stkpush/v1/processrequest', [
-                'BusinessShortCode' => config('services.mpesa.shortcode'),
+                'BusinessShortCode' => $config->shortcode,
                 'Password' => $password,
                 'Timestamp' => $timestamp,
-                'TransactionType' => 'CustomerPayBillOnline',
+                'TransactionType' => $accountType->transactionType(),
                 'Amount' => $transaction->amount,
                 'PartyA' => $phone,
-                'PartyB' => config('services.mpesa.shortcode'),
+                'PartyB' => $config->shortcode,
                 'PhoneNumber' => $phone,
                 'CallBackURL' => config('services.mpesa.callback_url'),
-                'AccountReference' => $transaction->reference ?? 'AkiraBites',
-                'TransactionDesc' => 'Akira Bites order payment',
+                'AccountReference' => Str::limit($transaction->reference ?? 'AkiraFlow', 12, ''),
+                'TransactionDesc' => 'Sale payment',
             ]);
+
+        $payload = $response->json();
+        if (! is_array($payload)) {
+            $payload = [];
+        }
+
+        if ($response->failed()) {
+            $message = $this->darajaErrorMessage($payload, $response->status());
+
+            $transaction->update([
+                'status' => MpesaTransactionStatus::Failed,
+                'result_description' => $message,
+            ]);
+
+            throw ValidationException::withMessages([
+                'mpesa' => [$message],
+            ]);
+        }
+        $responseCode = (string) ($payload['ResponseCode'] ?? '1');
+
+        if ($responseCode !== '0') {
+            $message = $payload['CustomerMessage'] ?? $payload['ResponseDescription'] ?? 'STK Push was rejected.';
+
+            $transaction->update([
+                'status' => MpesaTransactionStatus::Failed,
+                'result_description' => is_string($message) ? $message : 'STK Push was rejected.',
+                'merchant_request_id' => $payload['MerchantRequestID'] ?? null,
+                'checkout_request_id' => $payload['CheckoutRequestID'] ?? $transaction->checkout_request_id,
+            ]);
+
+            throw ValidationException::withMessages([
+                'mpesa' => [is_string($message) ? $message : 'STK Push was rejected.'],
+            ]);
+        }
+
+        $transaction->update([
+            'checkout_request_id' => $payload['CheckoutRequestID'] ?? $transaction->checkout_request_id,
+            'merchant_request_id' => $payload['MerchantRequestID'] ?? null,
+            'status' => MpesaTransactionStatus::Pending,
+            'result_description' => $payload['CustomerMessage'] ?? 'STK Push sent. Waiting for PIN.',
+        ]);
     }
 
-    private function getAccessToken(): string
+    private function getAccessToken(MpesaConfig $config): string
     {
-        $response = Http::withBasicAuth(
-            config('services.mpesa.consumer_key'),
-            config('services.mpesa.consumer_secret'),
-        )->get(config('services.mpesa.base_url').'/oauth/v1/generate', [
-            'grant_type' => 'client_credentials',
-        ]);
+        return Cache::remember(
+            $this->tokenCacheKey($config->business_id),
+            now()->addMinutes(50),
+            function () use ($config) {
+                $response = Http::timeout(20)
+                    ->withBasicAuth($config->consumer_key, $config->consumer_secret)
+                    ->acceptJson()
+                    ->get(config('services.mpesa.base_url').'/oauth/v1/generate', [
+                        'grant_type' => 'client_credentials',
+                    ]);
 
-        return $response->json('access_token');
+                $token = $response->json('access_token');
+                if ($response->failed() || ! filled($token)) {
+                    throw ValidationException::withMessages([
+                        'mpesa' => [
+                            $this->darajaErrorMessage($response->json() ?? [], $response->status())
+                                ?: 'Could not authenticate with Safaricom. Check the consumer key and secret.',
+                        ],
+                    ]);
+                }
+
+                return $token;
+            },
+        );
+    }
+
+    private function darajaErrorMessage(mixed $payload, int $status): string
+    {
+        if (is_array($payload)) {
+            foreach (['errorMessage', 'ResponseDescription', 'CustomerMessage', 'error_description'] as $key) {
+                if (isset($payload[$key]) && is_string($payload[$key]) && $payload[$key] !== '') {
+                    return $payload[$key];
+                }
+            }
+        }
+
+        return 'Safaricom rejected the STK Push (HTTP '.$status.'). Use sandbox Paybill 174379 and the Lipa Na M-Pesa Online passkey.';
+    }
+
+    private function tokenCacheKey(int $businessId): string
+    {
+        return 'mpesa.oauth.'.$businessId;
+    }
+
+    private function callbackMetadataValue(array $body, string $name): mixed
+    {
+        $items = data_get($body, 'CallbackMetadata.Item', []);
+        if (! is_array($items)) {
+            return null;
+        }
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            if (($item['Name'] ?? '') === $name) {
+                return $item['Value'] ?? null;
+            }
+        }
+
+        return null;
     }
 
     private function normalizePhone(string $phone): string

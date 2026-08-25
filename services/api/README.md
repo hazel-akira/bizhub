@@ -156,3 +156,10 @@ PostgreSQL database: `AkiraSaaS` (see `.env`).
 ```bash
 php artisan migrate:status   # never migrate:fresh on production DB
 ```
+
+## Production
+
+Host this API on **Fly.io** with **Neon** Postgres. The Flutter app is distributed on **Google Play**, not from this server.
+
+See [`../../DEPLOY.md`](../../DEPLOY.md).
+

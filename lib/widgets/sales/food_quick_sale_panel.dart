@@ -6,7 +6,9 @@ import '../../providers/api_data_provider.dart';
 import '../../providers/business_api_provider.dart';
 import '../../providers/customers_provider.dart';
 import '../../providers/sales_provider.dart';
+import '../../screens/sale_receipt_screen.dart';
 import '../../services/sales_reminder_service.dart';
+import 'mpesa_checkout_flow.dart';
 
 class FoodQuickSalePanel extends ConsumerStatefulWidget {
   const FoodQuickSalePanel({
@@ -28,6 +30,7 @@ class _FoodQuickSalePanelState extends ConsumerState<FoodQuickSalePanel> {
   int _quantity = 1;
   String _selectedCustomerName = _walkInCustomer;
   bool _paymentIsPaidChip = true;
+  String _paidMethod = 'cash';
   bool _isSubmitting = false;
 
   double get _unitPrice => _selectedProduct == 'meat'
@@ -48,11 +51,58 @@ class _FoodQuickSalePanelState extends ConsumerState<FoodQuickSalePanel> {
           : _selectedCustomerName.trim();
       final useCloud = ref.read(useCloudDataProvider);
 
+      if (paid && _paidMethod == 'mpesa' && !useCloud) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sign in to collect M-Pesa payments.'),
+          ),
+        );
+        return;
+      }
+
       if (useCloud) {
+        if (paid && _paidMethod == 'mpesa') {
+          final mpesa = await MpesaCheckoutFlow.collect(
+            context: context,
+            ref: ref,
+            amount: _totalAmount,
+            reference: 'food_${DateTime.now().millisecondsSinceEpoch}',
+          );
+          if (mpesa == null) return;
+          if (!mounted) return;
+
+          final sale = await ref.read(createApiSaleProvider)(
+            ndenguCount: _ndenguCount,
+            meatCount: _meatCount,
+            paid: true,
+            paymentMethod: 'mpesa',
+          );
+
+          try {
+            await SalesReminderService.instance
+                .syncDailyReminder(hasSalesToday: true);
+          } catch (_) {}
+
+          widget.onSaleRecorded();
+          if (!mounted) return;
+          setState(() => _quantity = 1);
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => SaleReceiptScreen(
+                sale: sale,
+                mpesaReceiptNumber: mpesa.mpesaReceiptNumber,
+                phone: mpesa.phone,
+              ),
+            ),
+          );
+          return;
+        }
+
         await ref.read(createApiSaleProvider)(
           ndenguCount: _ndenguCount,
           meatCount: _meatCount,
           paid: paid,
+          paymentMethod: _paidMethod,
         );
       } else {
         await ref.read(createQuickSaleProvider)(
@@ -242,6 +292,20 @@ class _FoodQuickSalePanelState extends ConsumerState<FoodQuickSalePanel> {
                 ),
               ],
             ),
+            if (_paymentIsPaidChip) ...[
+              const SizedBox(height: 12),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'cash', label: Text('Cash')),
+                  ButtonSegment(value: 'mpesa', label: Text('M-Pesa')),
+                ],
+                selected: {_paidMethod},
+                onSelectionChanged: (value) {
+                  if (_isSubmitting) return;
+                  setState(() => _paidMethod = value.first);
+                },
+              ),
+            ],
             const SizedBox(height: 14),
             Row(
               children: [

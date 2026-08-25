@@ -78,6 +78,8 @@ Verify: open http://127.0.0.1:8000/api/health — should return `{"ok":true,...}
 
 See [`services/api/README.md`](services/api/README.md) for database setup and endpoints.
 
+**Production:** Play Store for the Android app; Fly.io + Neon for the API. See [`DEPLOY.md`](DEPLOY.md).
+
 ---
 
 ## Android release build (Play Store)
@@ -121,4 +123,5 @@ Notes:
 
 ## Docs
 
+- [`DEPLOY.md`](DEPLOY.md) — Fly.io API + Google Play
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Project structure and features

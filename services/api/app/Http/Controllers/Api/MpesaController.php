@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\RespondsWithJson;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\InitiateStkPushRequest;
+use App\Http\Requests\UpdateMpesaConfigRequest;
 use App\Models\Order;
 use App\Services\MpesaService;
 use Illuminate\Http\JsonResponse;
@@ -15,7 +17,66 @@ class MpesaController extends Controller
 
     public function __construct(private readonly MpesaService $mpesa) {}
 
-    public function stkPush(Request $request): JsonResponse
+    public function config(Request $request): JsonResponse
+    {
+        $config = $request->user()->business?->mpesaConfig;
+
+        return $this->success(
+            $config?->toPublicArray() ?? [
+                'configured' => false,
+                'shortcode' => null,
+                'account_type' => 'paybill',
+                'account_type_label' => 'Paybill',
+            ]
+        );
+    }
+
+    public function updateConfig(UpdateMpesaConfigRequest $request): JsonResponse
+    {
+        $config = $this->mpesa->upsertConfig(
+            $request->user()->business,
+            $request->validated(),
+        );
+
+        return $this->success($config->toPublicArray(), 200, 'M-Pesa credentials saved');
+    }
+
+    /**
+     * Cashier STK Push — uses the authenticated business (tenant) credentials.
+     */
+    public function stkPush(InitiateStkPushRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $user = $request->user();
+        $tenantId = $validated['business_id'] ?? $validated['tenant_id'] ?? $user->business_id;
+
+        if ((int) $tenantId !== (int) $user->business_id) {
+            return $this->error('Tenant does not match the signed-in business.', 403);
+        }
+
+        $transaction = $this->mpesa->initiateStkPush(
+            $user->business,
+            (float) $validated['amount'],
+            $validated['phone'],
+            $validated['reference'] ?? null,
+            $validated['items'] ?? null,
+            $user,
+        );
+
+        return $this->success([
+            'id' => $transaction->id,
+            'business_id' => $transaction->business_id,
+            'checkout_request_id' => $transaction->checkout_request_id,
+            'amount' => $transaction->amount,
+            'phone' => $transaction->phone,
+            'status' => $transaction->status?->value,
+        ], 201);
+    }
+
+    /**
+     * Online order STK Push (web shop checkout).
+     */
+    public function stkPushForOrder(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
@@ -35,12 +96,12 @@ class MpesaController extends Controller
 
         return $this->success([
             'checkout_request_id' => $transaction->checkout_request_id,
-            'status' => 'processing',
+            'status' => $transaction->status?->value,
         ]);
     }
 
     /**
-     * Flutter app endpoint (unpaid screen).
+     * Flutter unpaid-screen compatibility endpoint.
      */
     public function stk(Request $request): JsonResponse
     {
@@ -54,23 +115,29 @@ class MpesaController extends Controller
             (float) $validated['amount'],
             $validated['phone'],
             $validated['reference'],
+            $request->user(),
         );
 
         return response()->json($result, 201);
     }
 
-    public function status(string $checkoutRequestId): JsonResponse
+    public function status(Request $request, string $checkoutRequestId): JsonResponse
     {
-        $transaction = $this->mpesa->getStatus($checkoutRequestId);
+        $transaction = $this->mpesa->getStatus(
+            $checkoutRequestId,
+            $request->user()?->business_id,
+        );
 
         if (! $transaction) {
             return $this->error('Unknown checkout request', 404);
         }
 
-        return response()->json([
-            'status' => $transaction->status,
+        return $this->success([
+            'id' => $transaction->id,
+            'status' => $transaction->status?->value,
             'reference' => $transaction->reference,
             'mpesa_receipt_number' => $transaction->mpesa_receipt_number,
+            'amount' => $transaction->amount,
         ]);
     }
 

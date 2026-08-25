@@ -8,7 +8,7 @@
 *.swp
 *.swo
 
-# Environment & secrets (injected at runtime by Coolify)
+# Environment & secrets (injected at runtime on Fly.io)
 .env
 .env.*
 !.env.example

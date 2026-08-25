@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Flutter web — build static assets, serve with nginx (Coolify / production).
+# Flutter web — optional static nginx image (not required for Play Store).
 
 # -----------------------------------------------------------------------------
 # Stage 1 — Build Flutter web

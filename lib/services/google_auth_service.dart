@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../core/google_auth_config.dart';
@@ -38,8 +39,10 @@ class GoogleAuthService {
       throw const GoogleAuthNotConfiguredException();
     }
 
+    // Web requires clientId; Android/iOS use serverClientId for ID tokens.
     return _initFuture ??= GoogleSignIn.instance.initialize(
-      serverClientId: webClientId,
+      clientId: kIsWeb ? webClientId : null,
+      serverClientId: kIsWeb ? null : webClientId,
     );
   }
 

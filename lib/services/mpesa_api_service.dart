@@ -1,89 +1,166 @@
-import 'dart:convert';
+import '../core/phone_utils.dart';
+import 'api_client.dart';
 
-import 'package:http/http.dart' as http;
+class MpesaConfigInfo {
+  const MpesaConfigInfo({
+    required this.configured,
+    this.shortcode,
+    this.accountType = 'paybill',
+    this.accountTypeLabel,
+  });
 
-import '../core/constants.dart';
+  final bool configured;
+  final String? shortcode;
+  final String accountType;
+  final String? accountTypeLabel;
 
-/// Result of initiating STK Push.
+  factory MpesaConfigInfo.fromJson(Map<String, dynamic> json) {
+    return MpesaConfigInfo(
+      configured: json['configured'] as bool? ?? false,
+      shortcode: json['shortcode'] as String?,
+      accountType: json['account_type'] as String? ?? 'paybill',
+      accountTypeLabel: json['account_type_label'] as String?,
+    );
+  }
+}
+
 class StkInitResult {
   const StkInitResult({
     required this.checkoutRequestId,
     required this.status,
+    this.id,
+    this.amount,
+    this.phone,
   });
 
-  final String? checkoutRequestId;
+  final int? id;
+  final String checkoutRequestId;
   final String status;
+  final int? amount;
+  final String? phone;
+
+  factory StkInitResult.fromJson(Map<String, dynamic> json) {
+    return StkInitResult(
+      id: json['id'] as int?,
+      checkoutRequestId: json['checkout_request_id'] as String? ?? '',
+      status: json['status'] as String? ?? 'PENDING',
+      amount: json['amount'] as int?,
+      phone: json['phone'] as String?,
+    );
+  }
 }
 
-/// Result of polling payment status.
 class StkStatusResult {
   const StkStatusResult({
     required this.status,
     this.reference,
     this.mpesaReceiptNumber,
+    this.amount,
   });
 
   final String status;
   final String? reference;
   final String? mpesaReceiptNumber;
+  final int? amount;
+
+  bool get isCompleted => status.toUpperCase() == 'COMPLETED';
+  bool get isFailed => status.toUpperCase() == 'FAILED';
+  bool get isPending => !isCompleted && !isFailed;
+
+  factory StkStatusResult.fromJson(Map<String, dynamic> json) {
+    return StkStatusResult(
+      status: json['status'] as String? ?? 'PENDING',
+      reference: json['reference'] as String?,
+      mpesaReceiptNumber: json['mpesa_receipt_number'] as String?,
+      amount: json['amount'] as int?,
+    );
+  }
 }
 
-/// Calls the M-Pesa bridge API.
+/// Calls the Laravel M-Pesa API using the signed-in tenant.
 class MpesaApiService {
-  MpesaApiService({String? baseUrl}) : _baseUrl = baseUrl ?? apiBaseUrl;
+  MpesaApiService(this._api);
 
-  final String _baseUrl;
+  final ApiClient _api;
 
-  Uri _uri(String path) => Uri.parse('$_baseUrl/api$path');
+  Future<MpesaConfigInfo> getConfig() async {
+    final json = await _api.get('/api/mpesa/config', auth: true);
+    return MpesaConfigInfo.fromJson(_data(json));
+  }
 
-  /// Initiates STK Push. Throws on network/API error.
+  Future<MpesaConfigInfo> saveConfig({
+    required String shortcode,
+    required String accountType,
+    String? consumerKey,
+    String? consumerSecret,
+    String? passkey,
+  }) async {
+    final body = <String, dynamic>{
+      'shortcode': shortcode,
+      'account_type': accountType,
+    };
+    if (consumerKey != null && consumerKey.trim().isNotEmpty) {
+      body['consumer_key'] = consumerKey.trim();
+    }
+    if (consumerSecret != null && consumerSecret.trim().isNotEmpty) {
+      body['consumer_secret'] = consumerSecret.trim();
+    }
+    if (passkey != null && passkey.trim().isNotEmpty) {
+      body['passkey'] = passkey.trim();
+    }
+
+    final json = await _api.put('/api/mpesa/config', auth: true, body: body);
+    return MpesaConfigInfo.fromJson(_data(json));
+  }
+
+  /// Initiates STK Push for the current tenant.
+  Future<StkInitResult> initiateStkPush({
+    required int businessId,
+    required double amount,
+    required String phone,
+    String? reference,
+  }) async {
+    final json = await _api.post(
+      '/api/mpesa/stk-push',
+      auth: true,
+      timeout: const Duration(seconds: 30),
+      body: {
+        'business_id': businessId,
+        'tenant_id': businessId,
+        'amount': amount,
+        'phone': normalizePhoneKey(phone),
+        'reference': ?reference,
+      },
+    );
+
+    return StkInitResult.fromJson(_data(json));
+  }
+
+  /// Unpaid-screen compatibility helper.
   Future<StkInitResult> initiateStk({
     required double amount,
     required String phone,
     required String reference,
-  }) async {
-    final response = await http.post(
-      _uri('/mpesa/stk'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'amount': amount,
-        'phone': phone,
-        'reference': reference,
-      }),
+    required int businessId,
+  }) {
+    return initiateStkPush(
+      businessId: businessId,
+      amount: amount,
+      phone: phone,
+      reference: reference,
     );
-
-    final body = jsonDecode(response.body) as Map<String, dynamic>?;
-
-    if (response.statusCode == 201) {
-      return StkInitResult(
-        checkoutRequestId: body?['checkout_request_id'] as String?,
-        status: body?['status'] as String? ?? 'processing',
-      );
-    }
-
-    final message = body?['message'] as String? ?? 'Request failed';
-    throw Exception(message);
   }
 
-  /// Polls payment status. Throws on network error.
   Future<StkStatusResult> getStatus(String checkoutRequestId) async {
-    final path = '/mpesa/status/${Uri.encodeComponent(checkoutRequestId)}';
-    final response = await http.get(_uri(path));
+    final path =
+        '/api/mpesa/status/${Uri.encodeComponent(checkoutRequestId)}';
+    final json = await _api.get(path, auth: true);
+    return StkStatusResult.fromJson(_data(json));
+  }
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>?;
-
-    if (response.statusCode == 200) {
-      return StkStatusResult(
-        status: body?['status'] as String? ?? 'pending',
-        reference: body?['reference'] as String?,
-        mpesaReceiptNumber: body?['mpesa_receipt_number'] as String?,
-      );
-    }
-
-    if (response.statusCode == 404) {
-      throw Exception('Unknown checkout request');
-    }
-
-    throw Exception('Failed to get status');
+  Map<String, dynamic> _data(Map<String, dynamic> json) {
+    final data = json['data'];
+    if (data is Map<String, dynamic>) return data;
+    return json;
   }
 }

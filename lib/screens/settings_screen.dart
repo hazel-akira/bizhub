@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../providers/database_provider.dart';
 import '../services/sales_reminder_service.dart';
+import '../widgets/mpesa_settings_card.dart';
 import 'login_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -82,6 +83,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               );
             },
           ),
+          const SizedBox(height: 16),
+          const MpesaSettingsCard(),
           const SizedBox(height: 16),
           Card(
             child: Padding(

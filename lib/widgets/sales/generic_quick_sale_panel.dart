@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/api_product.dart';
 import '../../providers/api_data_provider.dart';
 import '../../providers/business_api_provider.dart';
+import '../../screens/sale_receipt_screen.dart';
+import 'mpesa_checkout_flow.dart';
 
 class GenericQuickSalePanel extends ConsumerStatefulWidget {
   const GenericQuickSalePanel({
@@ -33,7 +35,8 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
   final _searchController = TextEditingController();
   final Map<int, _CartLine> _cart = {};
   bool _isSubmitting = false;
-  String _paymentMethod = 'cash';
+
+  bool get _canPay => !_isSubmitting && _cart.isNotEmpty;
 
   @override
   void dispose() {
@@ -69,7 +72,7 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
     });
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit({required String method}) async {
     if (_isSubmitting || _cart.isEmpty) return;
 
     final useCloud = ref.read(useCloudDataProvider);
@@ -84,11 +87,43 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
 
     setState(() => _isSubmitting = true);
     try {
+      if (method == 'mpesa') {
+        final paid = await MpesaCheckoutFlow.collect(
+          context: context,
+          ref: ref,
+          amount: _cartTotal,
+          reference: 'sale_${DateTime.now().millisecondsSinceEpoch}',
+        );
+        if (paid == null) return;
+        if (!mounted) return;
+
+        final sale = await ref.read(createApiSaleWithItemsProvider)(
+          items: _cart.values
+              .map((line) => (productId: line.product.id, quantity: line.quantity))
+              .toList(),
+          paymentMethod: 'mpesa',
+        );
+
+        widget.onSaleRecorded();
+        if (!mounted) return;
+        setState(() => _cart.clear());
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SaleReceiptScreen(
+              sale: sale,
+              mpesaReceiptNumber: paid.mpesaReceiptNumber,
+              phone: paid.phone,
+            ),
+          ),
+        );
+        return;
+      }
+
       await ref.read(createApiSaleWithItemsProvider)(
         items: _cart.values
             .map((line) => (productId: line.product.id, quantity: line.quantity))
             .toList(),
-        paymentMethod: _paymentMethod,
+        paymentMethod: method,
       );
 
       widget.onSaleRecorded();
@@ -159,6 +194,11 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap Add on a product, then pay with cash or M-Pesa.',
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                    ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _searchController,
@@ -192,12 +232,12 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                                 'KES ${product.sellingPrice.toStringAsFixed(0)}'
                                 '${product.stockQuantity > 0 ? ' • Stock: ${product.stockQuantity}' : ''}',
                               ),
-                              trailing: inCart > 0
-                                  ? Chip(
-                                      label: Text('$inCart in cart'),
-                                      backgroundColor: Colors.blue.shade50,
-                                    )
-                                  : null,
+                              trailing: FilledButton.tonal(
+                                onPressed: _isSubmitting
+                                    ? null
+                                    : () => _addProduct(product),
+                                child: Text(inCart > 0 ? 'Add ($inCart)' : 'Add'),
+                              ),
                               onTap: _isSubmitting
                                   ? null
                                   : () => _addProduct(product),
@@ -209,25 +249,32 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                 ),
               ),
             ),
-            if (_cart.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+            const SizedBox(height: 12),
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      _cart.isEmpty
+                          ? 'Checkout'
+                          : 'Cart ($_cartItemCount items)',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_cart.isEmpty)
                       Text(
-                        'Cart ($_cartItemCount items)',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                      const SizedBox(height: 8),
+                        'Add a product above to enable Pay.',
+                        style: TextStyle(color: Colors.grey.shade700),
+                      )
+                    else ...[
                       ..._cart.values.map(
                         (line) => Padding(
                           padding: const EdgeInsets.only(bottom: 8),
@@ -284,50 +331,44 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                             .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w900),
                       ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        key: ValueKey(_paymentMethod),
-                        initialValue: _paymentMethod,
-                        decoration: const InputDecoration(
-                          labelText: 'Payment method',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                          DropdownMenuItem(value: 'mpesa', child: Text('M-Pesa')),
-                          DropdownMenuItem(
-                            value: 'credit',
-                            child: Text('Credit'),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _canPay
+                                ? () => _submit(method: 'cash')
+                                : null,
+                            icon: const Icon(Icons.payments),
+                            label: const Text('Pay cash'),
                           ),
-                        ],
-                        onChanged: _isSubmitting
-                            ? null
-                            : (v) {
-                                if (v == null) return;
-                                setState(() => _paymentMethod = v);
-                              },
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        onPressed: _isSubmitting ? null : _submit,
-                        icon: _isSubmitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.check_circle),
-                        label: Text(
-                          _isSubmitting
-                              ? 'Processing…'
-                              : 'Complete sale (KES ${_cartTotal.toStringAsFixed(0)})',
                         ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: _canPay
+                                ? () => _submit(method: 'mpesa')
+                                : null,
+                            icon: const Icon(Icons.phone_android),
+                            label: const Text('Pay M-Pesa'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_canPay) ...[
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: _isSubmitting
+                            ? null
+                            : () => _submit(method: 'credit'),
+                        child: const Text('Save as credit / unpaid'),
                       ),
                     ],
-                  ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ],
         );
       },

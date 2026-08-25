@@ -93,17 +93,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/customers', [CustomerController::class, 'store']);
         Route::put('/customers/{customer}', [CustomerController::class, 'update']);
         Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+
+        Route::get('/mpesa/config', [MpesaController::class, 'config']);
+        Route::put('/mpesa/config', [MpesaController::class, 'updateConfig']);
+        Route::post('/mpesa/stk-push', [MpesaController::class, 'stkPush']);
+        Route::post('/mpesa/stk', [MpesaController::class, 'stk']);
+        Route::get('/mpesa/status/{checkoutRequestId}', [MpesaController::class, 'status']);
     });
 
     // Online orders (web client checkout)
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::get('/account/orders', [AccountController::class, 'orders']);
-    Route::post('/mpesa/stkpush', [MpesaController::class, 'stkPush']);
+    Route::post('/mpesa/stkpush', [MpesaController::class, 'stkPushForOrder']);
 });
 
-Route::prefix('mpesa')->group(function () {
-    Route::post('/stk', [MpesaController::class, 'stk']);
-    Route::get('/status/{checkoutRequestId}', [MpesaController::class, 'status']);
-    Route::post('/callback', [MpesaController::class, 'callback']);
-});
+// Safaricom Daraja webhook — must stay public (no auth:sanctum).
+// Also exclude this path from CSRF in bootstrap/app.php (validateCsrfTokens except).
+Route::post('/mpesa/callback', [MpesaController::class, 'callback']);

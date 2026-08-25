@@ -17,7 +17,7 @@ linux/
 macos/
 windows/
 
-# Backend is a separate Coolify app
+# Backend is a separate Fly.io app (services/api)
 services/
 
 # Docs & misc

@@ -52,28 +52,31 @@ final apiTodayExpensesProvider = FutureProvider<List<ApiExpense>>((ref) async {
 });
 
 final createApiSaleProvider = Provider<
-    Future<void> Function({
+    Future<ApiSale> Function({
   required int ndenguCount,
   required int meatCount,
   required bool paid,
+  String paymentMethod,
 })>((ref) {
   return ({
     required int ndenguCount,
     required int meatCount,
     required bool paid,
+    String paymentMethod = 'cash',
   }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
 
-    await api.createSale(
+    final sale = await api.createSale(
       ndenguCount: ndenguCount,
       meatCount: meatCount,
-      paymentMethod: paid ? 'cash' : 'credit',
+      paymentMethod: paid ? paymentMethod : 'credit',
     );
 
     ref.invalidate(apiSalesProvider);
     ref.invalidate(apiDashboardProvider);
     ref.invalidate(apiTodaySalesProvider);
+    return sale;
   };
 });
 
@@ -92,7 +95,7 @@ final createApiExpenseProvider =
 });
 
 final createApiSaleWithItemsProvider = Provider<
-    Future<void> Function({
+    Future<ApiSale> Function({
   required List<({int productId, int quantity})> items,
   required String paymentMethod,
 })>((ref) {
@@ -103,7 +106,7 @@ final createApiSaleWithItemsProvider = Provider<
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
 
-    await api.createSaleWithItems(
+    final sale = await api.createSaleWithItems(
       items: items,
       paymentMethod: paymentMethod,
     );
@@ -112,6 +115,7 @@ final createApiSaleWithItemsProvider = Provider<
     ref.invalidate(apiDashboardProvider);
     ref.invalidate(apiTodaySalesProvider);
     ref.invalidate(apiProductsProvider);
+    return sale;
   };
 });
 
