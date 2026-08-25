@@ -5,7 +5,8 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Allow http:// to local Laravel API during debug (LAN / emulator). -->
     <application
-        android:usesCleartextTraffic="false"
+        android:usesCleartextTraffic="true"
         tools:replace="android:usesCleartextTraffic" />
 </manifest>

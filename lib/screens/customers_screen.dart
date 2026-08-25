@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/phone_utils.dart';
 import '../core/whatsapp_helper.dart';
 import '../database/app_database.dart';
 import '../providers/dashboard_provider.dart';
@@ -42,6 +43,28 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: customersAsync.when(
                 data: (customers) {
+                  if (customers.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Add a customer first before recording an unpaid sale.',
+                            style: Theme.of(ctx).textTheme.bodyMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  selectedCustomerId ??= customers.first.id;
                   final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
                   return StatefulBuilder(
                     builder: (ctx, setLocal) {
@@ -68,19 +91,6 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                   ?.copyWith(fontWeight: FontWeight.w900),
                             ),
                             const SizedBox(height: 12),
-                            if (selectedCustomerId == null &&
-                                customers.isNotEmpty)
-                              Builder(
-                                builder: (ctx) {
-                                  WidgetsBinding.instance.addPostFrameCallback(
-                                    (_) => setLocal(
-                                      () => selectedCustomerId =
-                                          customers.first.id,
-                                    ),
-                                  );
-                                  return const SizedBox.shrink();
-                                },
-                              ),
                             DropdownButtonFormField<int?>(
                               key: ValueKey(selectedCustomerId),
                               initialValue: selectedCustomerId,
@@ -184,7 +194,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 
                                         ref.invalidate(allSalesProvider);
                                         ref.invalidate(salesListItemsProvider);
-                                        ref.invalidate(unpaidCustomersProvider);
+                                        refreshCustomerRelatedProviders(ref);
                                         ref.invalidate(
                                           unpaidSalesWithOutstandingProvider,
                                         );
@@ -254,11 +264,23 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 
   Future<void> _pickFromContacts() async {
     try {
-      final pickedId = await FlutterContacts.native.showPicker();
-      if (pickedId == null || !mounted) return;
+      final hasAccess =
+          await FlutterContacts.permissions.has(PermissionType.read);
+      if (!hasAccess) {
+        final status =
+            await FlutterContacts.permissions.request(PermissionType.read);
+        if (status != PermissionStatus.granted &&
+            status != PermissionStatus.limited) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Contact access denied')),
+            );
+          }
+          return;
+        }
+      }
 
-      final contact = await FlutterContacts.get(
-        pickedId,
+      final contact = await FlutterContacts.native.showPicker(
         properties: {ContactProperty.name, ContactProperty.phone},
       );
       if (contact == null || !mounted) return;
@@ -301,7 +323,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
       return;
     }
 
-    ref.invalidate(customersProvider);
+    refreshCustomerRelatedProviders(ref);
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Customer added')));
@@ -360,7 +382,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
               if (c.phone.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 SelectableText(
-                  c.phone,
+                  formatPhoneForDisplay(c.phone),
                   style: Theme.of(ctx).textTheme.bodyLarge,
                 ),
               ] else
@@ -434,7 +456,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 
   Future<void> _showEditCustomerDialog(Customer c) async {
     final nameCtrl = TextEditingController(text: c.name);
-    final phoneCtrl = TextEditingController(text: c.phone);
+    final phoneCtrl = TextEditingController(text: formatPhoneForDisplay(c.phone));
     final formKey = GlobalKey<FormState>();
 
     final saved = await showDialog<bool>(
@@ -499,7 +521,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     phoneCtrl.dispose();
 
     if (!mounted) return;
-    ref.invalidate(customersProvider);
+    refreshCustomerRelatedProviders(ref);
+    ref.invalidate(unpaidSalesWithOutstandingProvider);
+    ref.invalidate(unpaidCustomersDebtProvider);
 
     if (dup != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -540,15 +564,26 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     if (ok != true || !mounted) return;
 
     final deleteFn = ref.read(deleteCustomerProvider);
-    final deleted = await deleteFn(c.id);
+    final failureReason = await deleteFn(c.id);
     if (!mounted) return;
-    ref.invalidate(customersProvider);
+    refreshCustomerRelatedProviders(ref);
 
-    if (!deleted) {
+    if (failureReason == 'orders') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Cannot delete: this customer has orders. Fulfill or archive orders first.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (failureReason == 'balance') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Cannot delete: this customer still has an outstanding balance.',
           ),
         ),
       );
@@ -563,6 +598,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   @override
   Widget build(BuildContext context) {
     final customersAsync = ref.watch(customersProvider);
+    final hasCustomers = customersAsync.maybeWhen(
+      data: (customers) => customers.isNotEmpty,
+      orElse: () => false,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -658,13 +697,23 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     FilledButton.icon(
-                      onPressed: _showAddUnpaidSaleSheet,
+                      onPressed: hasCustomers ? _showAddUnpaidSaleSheet : null,
                       icon: const Icon(Icons.add_shopping_cart),
                       label: const Text('Add Sale (Unpaid)'),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
                       ),
                     ),
+                    if (!hasCustomers)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Add at least one customer to record unpaid sales.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
                       onPressed: () {
@@ -764,7 +813,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                           );
                                           return bal.when(
                                             data: (value) => Text(
-                                              '${c.phone} • Balance: KES ${value.toStringAsFixed(0)}',
+                                              '${formatPhoneForDisplay(c.phone)} • Balance: KES ${value.toStringAsFixed(0)}',
                                               style: TextStyle(
                                                 color: value > 0
                                                     ? Theme.of(
@@ -774,8 +823,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                                 fontWeight: FontWeight.w600,
                                               ),
                                             ),
-                                            loading: () => Text(c.phone),
-                                            error: (e, _) => Text(c.phone),
+                                            loading: () =>
+                                                Text(formatPhoneForDisplay(c.phone)),
+                                            error: (e, _) =>
+                                                Text(formatPhoneForDisplay(c.phone)),
                                           );
                                         },
                                       )

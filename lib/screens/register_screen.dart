@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/google_auth_config.dart';
 import '../main.dart';
 import '../models/business_type.dart';
 import '../providers/auth_provider.dart';
 import '../services/business_type_service.dart';
+import '../services/google_auth_service.dart';
 import '../widgets/api_connection_card.dart';
+import '../widgets/google_sign_in_button.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
-  const RegisterScreen({super.key});
+  const RegisterScreen({
+    super.key,
+    this.initialName,
+    this.initialEmail,
+  });
+
+  final String? initialName;
+  final String? initialEmail;
 
   @override
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
@@ -32,6 +42,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialName != null) {
+      _nameController.text = widget.initialName!;
+    }
+    if (widget.initialEmail != null) {
+      _emailController.text = widget.initialEmail!;
+    }
     _loadBusinessTypes();
   }
 
@@ -103,6 +119,54 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    if (_selectedBusinessType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select your business category')),
+      );
+      return;
+    }
+    if (_businessController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your business name')),
+      );
+      return;
+    }
+
+    try {
+      await ref.read(authProvider.notifier).signInWithGoogle(
+            name: _nameController.text.trim().isEmpty
+                ? null
+                : _nameController.text.trim(),
+            businessName: _businessController.text.trim(),
+            businessType: _selectedBusinessType!,
+          );
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainNavScreen()),
+        (_) => false,
+      );
+    } on GoogleAuthCancelledException {
+      return;
+    } on GoogleAuthNotConfiguredException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ref.read(authProvider).error ??
+                e.toString().replaceFirst('ApiException: ', ''),
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
@@ -129,7 +193,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Join BizHub — one platform for shops, vendors, and restaurants.',
+                  'Join Akira Flow — operate, automate, and scale your business.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: Colors.grey.shade600,
                   ),
@@ -296,6 +360,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         )
                       : const Text('Create account'),
                 ),
+                if (isGoogleSignInConfigured) ...[
+                  const SizedBox(height: 16),
+                  const AuthDivider(label: 'or register with'),
+                  const SizedBox(height: 16),
+                  GoogleSignInButton(
+                    onPressed: _signInWithGoogle,
+                    isLoading: auth.isLoading,
+                    label: 'Continue with Google',
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Uses your Google account. Business name and category above are required.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

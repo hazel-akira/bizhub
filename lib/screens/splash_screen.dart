@@ -16,11 +16,19 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen>
     with TickerProviderStateMixin {
-  late AnimationController _logoController;
-  late AnimationController _progressController;
+  static const _brandGreen = Color(0xFF2D5A3D);
+  static const _brandOrange = Color(0xFFC75B12);
 
-  late Animation<double> _logoFade;
-  late Animation<double> _progressAnim;
+  late final AnimationController _introController;
+  late final AnimationController _progressController;
+
+  late final Animation<double> _markFade;
+  late final Animation<double> _markScale;
+  late final Animation<Offset> _markSlide;
+  late final Animation<double> _titleFade;
+  late final Animation<Offset> _titleSlide;
+  late final Animation<double> _taglineFade;
+  late final Animation<double> _progressAnim;
 
   bool _navigated = false;
 
@@ -28,26 +36,65 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void initState() {
     super.initState();
 
-    _logoController = AnimationController(
+    _introController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1600),
     );
-    _logoFade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _logoController, curve: Curves.easeIn),
+
+    _markFade = CurvedAnimation(
+      parent: _introController,
+      curve: const Interval(0.0, 0.45, curve: Curves.easeOut),
+    );
+    _markScale = Tween<double>(begin: 0.82, end: 1).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.0, 0.55, curve: Curves.easeOutBack),
+      ),
+    );
+    _markSlide = Tween<Offset>(
+      begin: const Offset(0, 0.12),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _titleFade = CurvedAnimation(
+      parent: _introController,
+      curve: const Interval(0.35, 0.7, curve: Curves.easeOut),
+    );
+    _titleSlide = Tween<Offset>(
+      begin: const Offset(0, 0.25),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.35, 0.75, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _taglineFade = CurvedAnimation(
+      parent: _introController,
+      curve: const Interval(0.55, 0.95, curve: Curves.easeOut),
     );
 
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 3),
+      duration: const Duration(milliseconds: 2800),
     );
-    _progressAnim = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
+    _progressAnim = CurvedAnimation(
+      parent: _progressController,
+      curve: Curves.easeInOut,
     );
 
-    _logoController.forward();
-    _progressController.forward();
+    _introController.forward();
+    Future<void>.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) _progressController.forward();
+    });
 
-    Timer(const Duration(seconds: 3), _tryNavigate);
+    Timer(const Duration(milliseconds: 3200), _tryNavigate);
   }
 
   void _tryNavigate() {
@@ -71,7 +118,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   void dispose() {
-    _logoController.dispose();
+    _introController.dispose();
     _progressController.dispose();
     super.dispose();
   }
@@ -89,74 +136,122 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     });
 
     return Scaffold(
-      backgroundColor: const Color(0xFFE65100),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FadeTransition(
-              opacity: _logoFade,
-              child: Image.asset('assets/images/logo.png', height: 140),
-            ),
-            const SizedBox(height: 20),
-            FadeTransition(
-              opacity: _logoFade,
-              child: const Text(
-                'BizHub',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 36),
+          child: Column(
+            children: [
+              const Spacer(flex: 3),
+              SlideTransition(
+                position: _markSlide,
+                child: FadeTransition(
+                  opacity: _markFade,
+                  child: ScaleTransition(
+                    scale: _markScale,
+                    child: Image.asset(
+                      'assets/images/mark.png',
+                      height: 148,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            FadeTransition(
-              opacity: _logoFade,
-              child: const Text(
-                'Business platform for every shop',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            FadeTransition(
-              opacity: _logoFade,
-              child: Icon(
-                Icons.storefront_outlined,
-                size: 80,
-                color: Colors.white.withValues(alpha: 0.9),
-              ),
-            ),
-            const SizedBox(height: 40),
-            AnimatedBuilder(
-              animation: _progressAnim,
-              builder: (context, child) {
-                return Column(
-                  children: [
-                    LinearProgressIndicator(
-                      value: _progressAnim.value,
-                      minHeight: 6,
-                      backgroundColor: Colors.white24,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Colors.white,
+              const SizedBox(height: 28),
+              SlideTransition(
+                position: _titleSlide,
+                child: FadeTransition(
+                  opacity: _titleFade,
+                  child: RichText(
+                    textAlign: TextAlign.center,
+                    text: const TextSpan(
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                        height: 1.1,
                       ),
+                      children: [
+                        TextSpan(
+                          text: 'Akira',
+                          style: TextStyle(color: _brandGreen),
+                        ),
+                        TextSpan(
+                          text: 'Flow',
+                          style: TextStyle(color: _brandOrange),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Loading... ${(_progressAnim.value * 100).toInt()}%',
-                      style: const TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              FadeTransition(
+                opacity: _taglineFade,
+                child: Text.rich(
+                  TextSpan(
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: 0.8,
+                      color: Colors.grey.shade800,
                     ),
-                  ],
-                );
-              },
-            ),
-          ],
+                    children: const [
+                      TextSpan(text: 'Operate'),
+                      TextSpan(
+                        text: ' · ',
+                        style: TextStyle(color: _brandOrange),
+                      ),
+                      TextSpan(
+                        text: 'Automate',
+                        style: TextStyle(color: _brandOrange),
+                      ),
+                      TextSpan(
+                        text: ' · ',
+                        style: TextStyle(color: _brandOrange),
+                      ),
+                      TextSpan(text: 'Scale'),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const Spacer(flex: 2),
+              FadeTransition(
+                opacity: _taglineFade,
+                child: AnimatedBuilder(
+                  animation: _progressAnim,
+                  builder: (context, child) {
+                    return Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: _progressAnim.value,
+                            minHeight: 5,
+                            backgroundColor: _brandGreen.withValues(alpha: 0.1),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              _brandOrange,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Loading... ${(_progressAnim.value * 100).toInt()}%',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );

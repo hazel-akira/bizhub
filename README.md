@@ -89,16 +89,33 @@ cp android/key.properties.example android/key.properties
 ```
 
 2. Edit `android/key.properties` with your real upload keystore values.
-3. Build with production API URL:
+3. Build with production API URL and Google Web client ID:
 
 ```bash
-flutter build appbundle --release --dart-define=API_BASE_URL=https://YOUR_API_DOMAIN
+flutter build appbundle --release \
+  --dart-define=API_BASE_URL=https://YOUR_API_DOMAIN \
+  --dart-define=GOOGLE_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
 ```
 
 Notes:
 - Release builds require `android/key.properties`.
 - Production endpoint should be HTTPS.
 - In release mode, API connection override is disabled in-app.
+- Set `GOOGLE_CLIENT_IDS` on the API to the same Web client ID (and Android/iOS IDs if used).
+
+### Google Sign-In setup
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create OAuth client IDs:
+   - **Web** — used as `GOOGLE_WEB_CLIENT_ID` in Flutter and in API `GOOGLE_CLIENT_IDS`
+   - **Android** — package `app.akirabizhub.pos`, add your SHA-1 fingerprints
+2. Add the Web client ID to `services/api/.env`:
+   ```
+   GOOGLE_CLIENT_IDS=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+   ```
+3. Pass the Web client ID when running or building the Flutter app:
+   ```
+   --dart-define=GOOGLE_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+   ```
 
 ---
 

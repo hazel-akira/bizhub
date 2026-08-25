@@ -23,10 +23,17 @@ final updateCustomerProvider =
       db.updateCustomer(id, name: name, phone: phone);
 });
 
-final deleteCustomerProvider = Provider<Future<bool> Function(int id)>((ref) {
+/// Returns `null` on success, or a reason code: `orders`, `balance`.
+final deleteCustomerProvider = Provider<Future<String?> Function(int id)>((ref) {
   final db = ref.watch(databaseProvider);
   return (id) => db.deleteCustomer(id);
 });
+
+void refreshCustomerRelatedProviders(WidgetRef ref) {
+  ref.invalidate(customersProvider);
+  ref.invalidate(unpaidCustomersProvider);
+  ref.invalidate(customerBalanceProvider);
+}
 
 final customerBalanceProvider = FutureProvider.family<double, int>((ref, customerId) async {
   final db = ref.watch(databaseProvider);

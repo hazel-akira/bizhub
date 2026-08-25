@@ -48,7 +48,7 @@ class DashboardScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _Header(
-                  businessName: auth.user?.businessName ?? 'BizHub',
+                  businessName: auth.user?.businessName ?? 'Akira Flow',
                   categoryLabel: config.label,
                   dateLabel: dateLabel,
                   useCloud: useCloud,

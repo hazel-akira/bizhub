@@ -17,6 +17,7 @@ class User extends Authenticatable
         'business_id',
         'name',
         'email',
+        'google_id',
         'password',
         'role',
         'is_active',

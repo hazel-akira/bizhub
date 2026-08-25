@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/auth_user.dart';
+import '../models/google_auth_exceptions.dart';
 import 'api_client.dart';
 
 class AuthSession {
@@ -54,6 +55,43 @@ class AuthService {
     });
 
     return _sessionFromResponse(json);
+  }
+
+  Future<AuthSession> loginWithGoogle({
+    required String idToken,
+    String? name,
+    String? businessName,
+    String? businessType,
+  }) async {
+    _api.clearBaseUrlCache();
+    final body = <String, dynamic>{'id_token': idToken};
+    if (name != null && name.trim().isNotEmpty) {
+      body['name'] = name.trim();
+    }
+    if (businessName != null && businessName.trim().isNotEmpty) {
+      body['business_name'] = businessName.trim();
+    }
+    if (businessType != null && businessType.trim().isNotEmpty) {
+      body['business_type'] = businessType.trim();
+    }
+
+    try {
+      final json = await _api.post('/api/auth/google', body: body);
+      return _sessionFromResponse(json);
+    } on ApiException catch (e) {
+      final needsRegistration = e.errors?['needs_registration'];
+      final isNeedsRegistration = needsRegistration is List
+          ? needsRegistration.contains('true')
+          : needsRegistration == 'true';
+
+      if (e.statusCode == 422 && isNeedsRegistration) {
+        throw GoogleRegistrationRequiredException(
+          email: '',
+          name: name?.trim() ?? '',
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<AuthUser> fetchMe(String token) async {

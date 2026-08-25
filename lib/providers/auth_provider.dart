@@ -1,10 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/auth_user.dart';
+import '../models/google_auth_exceptions.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
+import '../services/google_auth_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+
+final googleAuthServiceProvider =
+    Provider<GoogleAuthService>((ref) => GoogleAuthService());
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final auth = ref.watch(authProvider);
@@ -46,11 +51,12 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._auth) : super(const AuthState(isLoading: true)) {
+  AuthNotifier(this._auth, this._googleAuth) : super(const AuthState(isLoading: true)) {
     _restore();
   }
 
   final AuthService _auth;
+  final GoogleAuthService _googleAuth;
 
   Future<void> _restore() async {
     try {
@@ -143,12 +149,51 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<void> signInWithGoogle({
+    String? name,
+    String? businessName,
+    String? businessType,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final googleAccount = await _googleAuth.signIn();
+      try {
+        final session = await _auth.loginWithGoogle(
+          idToken: googleAccount.idToken,
+          name: name ?? googleAccount.displayName,
+          businessName: businessName,
+          businessType: businessType,
+        );
+        state = AuthState(
+          isLoading: false,
+          user: session.user,
+          token: session.token,
+        );
+      } on GoogleRegistrationRequiredException {
+        state = state.copyWith(isLoading: false);
+        throw GoogleRegistrationRequiredException(
+          email: googleAccount.email,
+          name: googleAccount.displayName,
+        );
+      }
+    } on GoogleRegistrationRequiredException {
+      rethrow;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString().replaceFirst('ApiException: ', ''),
+      );
+      rethrow;
+    }
+  }
+
   Future<void> logout() async {
     final token = state.token;
     state = state.copyWith(isLoading: true);
     if (token != null) {
       await _auth.logout(token);
     }
+    await _googleAuth.signOut();
     await _auth.clearSession();
     state = const AuthState(isLoading: false);
   }
@@ -156,5 +201,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
 final authProvider =
     StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.watch(authServiceProvider));
+  return AuthNotifier(
+    ref.watch(authServiceProvider),
+    ref.watch(googleAuthServiceProvider),
+  );
 });

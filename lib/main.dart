@@ -34,7 +34,7 @@ class BizHubApp extends ConsumerWidget {
     final theme = ref.watch(businessThemeProvider);
 
     return MaterialApp(
-      title: 'BizHub',
+      title: 'Akira Flow',
       debugShowCheckedModeBanner: false,
       theme: theme,
       home: const SplashScreen(),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/customers_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/payments_provider.dart';
 import '../providers/sales_provider.dart';
@@ -151,10 +152,12 @@ class _UnpaidCustomersScreenState
 
   void _refreshUI() {
     ref.invalidate(unpaidCustomersDebtProvider);
+    ref.invalidate(unpaidSalesWithOutstandingProvider);
     ref.invalidate(salesListItemsProvider);
     ref.invalidate(allSalesProvider);
     ref.invalidate(allPaymentsProvider);
     ref.invalidate(todayStatsProvider);
+    refreshCustomerRelatedProviders(ref);
   }
 
   @override

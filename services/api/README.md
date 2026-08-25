@@ -38,10 +38,11 @@ app/
 |--------|------|------|
 | POST | `/api/register` | No — requires `business_type` |
 | POST | `/api/login` | No |
+| POST | `/api/auth/google` | No — Google ID token; `business_name` + `business_type` for new accounts |
 | POST | `/api/logout` | Bearer |
 | GET | `/api/profile` | Bearer |
 
-Legacy Flutter paths: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
+Legacy Flutter paths: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`, `/api/auth/google`
 
 ### Business (requires `business` middleware)
 | Method | Path |

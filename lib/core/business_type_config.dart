@@ -41,7 +41,7 @@ class BusinessTypeConfig {
   static const fallback = BusinessTypeConfig(
     id: 'food_vendor',
     label: 'Food Vendors',
-    appTitle: 'BizHub',
+    appTitle: 'Akira Flow',
     isFoodBusiness: true,
     unitsSoldLabel: 'Samosas sold',
     primaryQuickActionLabel: 'Add order',
@@ -66,7 +66,7 @@ class BusinessTypeConfig {
     'food_vendor': BusinessTypeConfig(
       id: 'food_vendor',
       label: 'Food Vendors',
-      appTitle: 'BizHub',
+      appTitle: 'Akira Flow',
       isFoodBusiness: true,
       unitsSoldLabel: 'Samosas sold',
       primaryQuickActionLabel: 'Add order',
@@ -84,7 +84,7 @@ class BusinessTypeConfig {
     'small_restaurant': BusinessTypeConfig(
       id: 'small_restaurant',
       label: 'Small Restaurant',
-      appTitle: 'BizHub',
+      appTitle: 'Akira Flow',
       isFoodBusiness: true,
       unitsSoldLabel: 'Items sold',
       primaryQuickActionLabel: 'Add order',
@@ -102,7 +102,7 @@ class BusinessTypeConfig {
     'pharmacy': BusinessTypeConfig(
       id: 'pharmacy',
       label: 'Pharmacies',
-      appTitle: 'BizHub',
+      appTitle: 'Akira Flow',
       isFoodBusiness: false,
       unitsSoldLabel: 'Units sold',
       primaryQuickActionLabel: 'New sale',
@@ -120,7 +120,7 @@ class BusinessTypeConfig {
     'grocery_shop': BusinessTypeConfig(
       id: 'grocery_shop',
       label: 'Grocery Shop',
-      appTitle: 'BizHub',
+      appTitle: 'Akira Flow',
       isFoodBusiness: false,
       unitsSoldLabel: 'Units sold',
       primaryQuickActionLabel: 'New sale',
@@ -138,7 +138,7 @@ class BusinessTypeConfig {
     'boutique': BusinessTypeConfig(
       id: 'boutique',
       label: 'Boutiques',
-      appTitle: 'BizHub',
+      appTitle: 'Akira Flow',
       isFoodBusiness: false,
       unitsSoldLabel: 'Items sold',
       primaryQuickActionLabel: 'New sale',
@@ -156,7 +156,7 @@ class BusinessTypeConfig {
     'hardware_store': BusinessTypeConfig(
       id: 'hardware_store',
       label: 'Hardware Stores',
-      appTitle: 'BizHub',
+      appTitle: 'Akira Flow',
       isFoodBusiness: false,
       unitsSoldLabel: 'Units sold',
       primaryQuickActionLabel: 'New sale',
@@ -174,7 +174,7 @@ class BusinessTypeConfig {
     'electronics_shop': BusinessTypeConfig(
       id: 'electronics_shop',
       label: 'Electronic Shop',
-      appTitle: 'BizHub',
+      appTitle: 'Akira Flow',
       isFoodBusiness: false,
       unitsSoldLabel: 'Units sold',
       primaryQuickActionLabel: 'New sale',
@@ -192,7 +192,7 @@ class BusinessTypeConfig {
     'cybercafe': BusinessTypeConfig(
       id: 'cybercafe',
       label: 'Cybercafe',
-      appTitle: 'BizHub',
+      appTitle: 'Akira Flow',
       isFoodBusiness: false,
       unitsSoldLabel: 'Services sold',
       primaryQuickActionLabel: 'New sale',
@@ -210,7 +210,7 @@ class BusinessTypeConfig {
     'beauty_shop': BusinessTypeConfig(
       id: 'beauty_shop',
       label: 'Beauty & Cosmetics',
-      appTitle: 'BizHub',
+      appTitle: 'Akira Flow',
       isFoodBusiness: false,
       unitsSoldLabel: 'Items sold',
       primaryQuickActionLabel: 'New sale',

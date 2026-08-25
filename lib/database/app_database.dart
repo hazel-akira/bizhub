@@ -449,6 +449,10 @@ class AppDatabase extends _$AppDatabase {
 
   /// Returns another customer if the new phone belongs to someone else; otherwise updates and returns `null`.
   Future<Customer?> updateCustomer(int id, {required String name, String phone = ''}) async {
+    final existingCustomer = await getCustomer(id);
+    if (existingCustomer == null) return null;
+
+    final trimmedName = name.trim();
     final trimmed = phone.trim();
     final normalized = normalizePhoneKey(trimmed);
     if (normalized.isNotEmpty) {
@@ -460,19 +464,30 @@ class AppDatabase extends _$AppDatabase {
     final storedPhone = normalized.isNotEmpty ? normalized : trimmed;
     await (update(customers)..where((t) => t.id.equals(id))).write(
       CustomersCompanion(
-        name: Value(name),
+        name: Value(trimmedName),
         phone: Value(storedPhone),
       ),
     );
+
+    final oldName = existingCustomer.name;
+    if (oldName != trimmedName) {
+      await (update(sales)
+            ..where((s) => s.orderId.isNull() & s.customerName.equals(oldName)))
+          .write(SalesCompanion(customerName: Value(trimmedName)));
+    }
     return null;
   }
 
-  /// Returns `false` if this customer has any orders (FK safety).
-  Future<bool> deleteCustomer(int id) async {
+  /// Returns `null` on success, or a reason code: `orders`, `balance`.
+  Future<String?> deleteCustomer(int id) async {
     final related = await (select(orders)..where((t) => t.customerId.equals(id))).get();
-    if (related.isNotEmpty) return false;
+    if (related.isNotEmpty) return 'orders';
+
+    final balance = await getCustomerBalance(id);
+    if (balance > 0) return 'balance';
+
     await (delete(customers)..where((t) => t.id.equals(id))).go();
-    return true;
+    return null;
   }
 
   Future<List<Order>> getPendingOrders() async {

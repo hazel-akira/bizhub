@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/google_auth_config.dart';
 import '../main.dart';
+import '../models/google_auth_exceptions.dart';
 import '../providers/auth_provider.dart';
+import '../services/google_auth_service.dart';
 import '../widgets/api_connection_card.dart';
+import '../widgets/google_sign_in_button.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -51,6 +55,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    try {
+      await ref.read(authProvider.notifier).signInWithGoogle();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainNavScreen()),
+      );
+    } on GoogleAuthCancelledException {
+      return;
+    } on GoogleAuthNotConfiguredException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } on GoogleRegistrationRequiredException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RegisterScreen(
+            initialName: e.name,
+            initialEmail: e.email,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ref.read(authProvider).error ??
+                e.toString().replaceFirst('ApiException: ', ''),
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
@@ -68,19 +110,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Image.asset('assets/images/logo.png', height: 96),
+                    Image.asset(
+                      'assets/images/mark.png',
+                      height: 110,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 12),
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: const TextSpan(
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: 'Akira',
+                            style: TextStyle(color: Color(0xFF2D5A3D)),
+                          ),
+                          TextSpan(
+                            text: 'Flow',
+                            style: TextStyle(color: Color(0xFFC75B12)),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       'Welcome back',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF0D47A1),
+                        color: const Color(0xFF2D5A3D),
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Sign in to your AkiraSaaS account',
+                      'Sign in to your Akira Flow account',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: Colors.grey.shade600,
@@ -136,7 +203,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     FilledButton(
                       onPressed: auth.isLoading ? null : _submit,
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFE65100),
+                        backgroundColor: const Color(0xFFC75B12),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: auth.isLoading
@@ -150,6 +217,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             )
                           : const Text('Sign in'),
                     ),
+                    if (isGoogleSignInConfigured) ...[
+                      const SizedBox(height: 16),
+                      const AuthDivider(),
+                      const SizedBox(height: 16),
+                      GoogleSignInButton(
+                        onPressed: _signInWithGoogle,
+                        isLoading: auth.isLoading,
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     TextButton(
                       onPressed: auth.isLoading

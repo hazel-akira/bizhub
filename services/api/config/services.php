@@ -44,4 +44,9 @@ return [
         'callback_url' => env('MPESA_CALLBACK_URL'),
     ],
 
+    'google' => [
+        // Comma-separated OAuth client IDs (Web + Android + iOS) allowed as token audience.
+        'client_ids' => env('GOOGLE_CLIENT_IDS'),
+    ],
+
 ];
