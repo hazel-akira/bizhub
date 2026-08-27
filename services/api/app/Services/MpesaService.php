@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -99,7 +100,17 @@ class MpesaService
             $query->forBusiness($businessId);
         }
 
-        return $query->first();
+        $transaction = $query->with('business.mpesaConfig')->first();
+        if (
+            $transaction
+            && $transaction->status === MpesaTransactionStatus::Pending
+            && $transaction->created_at?->lt(now()->subSeconds(8))
+        ) {
+            $this->reconcileWithDaraja($transaction);
+            $transaction->refresh();
+        }
+
+        return $transaction;
     }
 
     public function upsertConfig(Business $business, array $data): MpesaConfig
@@ -126,6 +137,8 @@ class MpesaService
 
     public function handleCallback(array $payload): void
     {
+        Log::info('M-Pesa callback received', ['keys' => array_keys($payload)]);
+
         $body = data_get($payload, 'Body.stkCallback');
         if (! is_array($body)) {
             return;
@@ -174,6 +187,75 @@ class MpesaService
             'result_description' => $resultDesc,
         ]);
 
+        $transaction->order?->update(['payment_status' => 'failed']);
+    }
+
+    /**
+     * Ask Daraja for the STK outcome when the callback never arrives (e.g. dead ngrok URL).
+     */
+    private function reconcileWithDaraja(MpesaTransaction $transaction): void
+    {
+        $config = $transaction->business?->mpesaConfig;
+        if (! $config?->isReady() || ! filled($transaction->checkout_request_id)) {
+            return;
+        }
+
+        $timestamp = now('Africa/Nairobi')->format('YmdHis');
+        $password = base64_encode($config->shortcode.$config->passkey.$timestamp);
+
+        $response = Http::timeout(20)
+            ->withToken($this->getAccessToken($config))
+            ->acceptJson()
+            ->asJson()
+            ->post(config('services.mpesa.base_url').'/mpesa/stkpushquery/v1/query', [
+                'BusinessShortCode' => $config->shortcode,
+                'Password' => $password,
+                'Timestamp' => $timestamp,
+                'CheckoutRequestID' => $transaction->checkout_request_id,
+            ]);
+
+        $payload = $response->json();
+        if (! is_array($payload)) {
+            return;
+        }
+
+        $resultCode = $payload['ResultCode'] ?? null;
+        if ($resultCode === null || $resultCode === '') {
+            return;
+        }
+
+        $resultCode = (int) $resultCode;
+        $resultDesc = is_string($payload['ResultDesc'] ?? null)
+            ? $payload['ResultDesc']
+            : 'STK query result';
+
+        // 4999 = still waiting for PIN / processing.
+        if ($resultCode === 4999) {
+            return;
+        }
+
+        if ($resultCode === 0) {
+            $transaction->update([
+                'status' => MpesaTransactionStatus::Completed,
+                'result_description' => $resultDesc,
+            ]);
+
+            if ($transaction->order_id) {
+                $transaction->order?->update([
+                    'payment_status' => 'paid',
+                    'mpesa_receipt' => $transaction->mpesa_receipt_number,
+                ]);
+            }
+
+            MpesaPaymentReceived::dispatch($transaction->fresh());
+
+            return;
+        }
+
+        $transaction->update([
+            'status' => MpesaTransactionStatus::Failed,
+            'result_description' => $resultDesc,
+        ]);
         $transaction->order?->update(['payment_status' => 'failed']);
     }
 

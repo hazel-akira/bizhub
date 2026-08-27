@@ -17,7 +17,7 @@ class MpesaPaymentListener {
   Stream<StkStatusResult> watch({
     required String checkoutRequestId,
     Duration interval = const Duration(seconds: 2),
-    int maxAttempts = 60,
+    int maxAttempts = 90,
   }) {
     late StreamController<StkStatusResult> controller;
     Timer? timer;
@@ -67,7 +67,7 @@ class MpesaPaymentListener {
   Future<StkStatusResult?> waitForCompletion({
     required String checkoutRequestId,
     Duration interval = const Duration(seconds: 2),
-    int maxAttempts = 60,
+    int maxAttempts = 90,
   }) async {
     await for (final status in watch(
       checkoutRequestId: checkoutRequestId,
