@@ -79,6 +79,30 @@ class BusinessApiService {
         .toList();
   }
 
+  Future<List<ApiSale>> getUnpaidSales() async {
+    final json = await _api.get('/api/sales/unpaid', auth: true);
+    final list = json['data'] as List<dynamic>? ?? [];
+    return list
+        .map((e) => ApiSale.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<ApiSale> recordSalePayment({
+    required int saleId,
+    required double amount,
+    required String paymentMethod,
+  }) async {
+    final json = await _api.post(
+      '/api/sales/$saleId/payments',
+      auth: true,
+      body: {
+        'amount': amount,
+        'payment_method': paymentMethod,
+      },
+    );
+    return ApiSale.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
   Future<ApiSale> createSale({
     required int ndenguCount,
     required int meatCount,
@@ -120,6 +144,7 @@ class BusinessApiService {
   Future<ApiSale> createSaleWithItems({
     required List<({int productId, int quantity})> items,
     required String paymentMethod,
+    int? customerId,
   }) async {
     if (items.isEmpty) {
       throw Exception('Add at least one product to the sale');
@@ -130,6 +155,7 @@ class BusinessApiService {
       auth: true,
       body: {
         'payment_method': paymentMethod,
+        if (customerId != null) 'customer_id': customerId,
         'items': items
             .map(
               (item) => {

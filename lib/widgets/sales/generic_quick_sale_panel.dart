@@ -130,7 +130,13 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
       if (!mounted) return;
       setState(() => _cart.clear());
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sale completed')),
+        SnackBar(
+          content: Text(
+            method == 'credit'
+                ? 'Sale saved on credit — settle in Customers → Unpaid'
+                : 'Sale completed',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;

@@ -1,27 +1,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../database/app_database.dart';
+import 'api_data_provider.dart';
+import 'business_api_provider.dart';
 import 'database_provider.dart';
 
 class UnpaidSaleRow {
-  final Sale sale;
-  final String customerName;
-  final double outstanding;
-  final DateTime createdAt;
-
   const UnpaidSaleRow({
-    required this.sale,
+    required this.saleId,
     required this.customerName,
     required this.outstanding,
     required this.createdAt,
   });
+
+  final int saleId;
+  final String customerName;
+  final double outstanding;
+  final DateTime createdAt;
 }
 
 class UnpaidCustomerDebtRow {
   final String customerName;
   final double outstanding;
-  final DateTime date; // oldest unpaid sale date
-  final List<UnpaidSaleRow> unpaidSales; // oldest -> newest
+  final DateTime date;
+  final List<UnpaidSaleRow> unpaidSales;
 
   const UnpaidCustomerDebtRow({
     required this.customerName,
@@ -31,78 +32,20 @@ class UnpaidCustomerDebtRow {
   });
 }
 
-final unpaidSalesWithOutstandingProvider =
-    FutureProvider<List<UnpaidSaleRow>>((ref) async {
-  final db = ref.watch(databaseProvider);
-
-  final sales = await db.getAllSalesListItems();
-  final payments = await db.getAllPayments();
-
-  final paidBySaleId = <int, double>{};
-  for (final p in payments) {
-    paidBySaleId[p.saleId] = (paidBySaleId[p.saleId] ?? 0) + p.amount;
-  }
-
-  final rows = sales
-      .where((item) => !item.sale.isPaid)
-      .map((item) {
-        final paid = paidBySaleId[item.sale.id] ?? 0;
-        final outstanding = item.sale.totalAmount - paid;
-        return UnpaidSaleRow(
-          sale: item.sale,
-          customerName: item.customerName,
-          outstanding: outstanding,
-          createdAt: item.sale.createdAt,
-        );
-      })
-      .where((r) => r.outstanding > 0)
-      .toList();
-
-  rows.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-  return rows;
-});
-
-final unpaidCustomersDebtProvider =
-    FutureProvider<List<UnpaidCustomerDebtRow>>((ref) async {
-  final db = ref.watch(databaseProvider);
-
-  final sales = await db.getAllSalesListItems();
-  final payments = await db.getAllPayments();
-
-  final paidBySaleId = <int, double>{};
-  for (final p in payments) {
-    paidBySaleId[p.saleId] = (paidBySaleId[p.saleId] ?? 0) + p.amount;
-  }
-
-  final unpaidSales = sales
-      .where((item) => !item.sale.isPaid)
-      .map((item) {
-        final paid = paidBySaleId[item.sale.id] ?? 0;
-        final outstanding = item.sale.totalAmount - paid;
-        return UnpaidSaleRow(
-          sale: item.sale,
-          customerName: item.customerName,
-          outstanding: outstanding,
-          createdAt: item.sale.createdAt,
-        );
-      })
-      .where((r) => r.outstanding > 0)
-      .toList();
-
-  // Group unpaid sales by customer and compute total outstanding.
+List<UnpaidCustomerDebtRow> _groupUnpaidRows(List<UnpaidSaleRow> unpaidSales) {
   final byCustomer = <String, List<UnpaidSaleRow>>{};
-  for (final s in unpaidSales) {
-    byCustomer.putIfAbsent(s.customerName, () => []).add(s);
+  for (final sale in unpaidSales) {
+    byCustomer.putIfAbsent(sale.customerName, () => []).add(sale);
   }
 
   final result = <UnpaidCustomerDebtRow>[];
   for (final entry in byCustomer.entries) {
-    final salesForCustomer = entry.value;
-    salesForCustomer.sort((a, b) => a.createdAt.compareTo(b.createdAt)); // oldest first
+    final salesForCustomer = entry.value
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
     final outstanding = salesForCustomer.fold<double>(
       0,
-      (sum, s) => sum + s.outstanding,
+      (sum, sale) => sum + sale.outstanding,
     );
 
     result.add(
@@ -115,9 +58,98 @@ final unpaidCustomersDebtProvider =
     );
   }
 
-  // Sort by oldest debt start date (newest debts first).
   result.sort((a, b) => b.date.compareTo(a.date));
   return result;
+}
+
+Future<List<UnpaidSaleRow>> _loadLocalUnpaidSales(Ref ref) async {
+  final db = ref.watch(databaseProvider);
+  final sales = await db.getAllSalesListItems();
+  final payments = await db.getAllPayments();
+
+  final paidBySaleId = <int, double>{};
+  for (final payment in payments) {
+    paidBySaleId[payment.saleId] =
+        (paidBySaleId[payment.saleId] ?? 0) + payment.amount;
+  }
+
+  final rows = sales
+      .where((item) => !item.sale.isPaid)
+      .map((item) {
+        final paid = paidBySaleId[item.sale.id] ?? 0;
+        final outstanding = item.sale.totalAmount - paid;
+        return UnpaidSaleRow(
+          saleId: item.sale.id,
+          customerName: item.customerName,
+          outstanding: outstanding,
+          createdAt: item.sale.createdAt,
+        );
+      })
+      .where((row) => row.outstanding > 0)
+      .toList();
+
+  rows.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return rows;
+}
+
+Future<List<UnpaidSaleRow>> _loadCloudUnpaidSales(Ref ref) async {
+  final api = ref.watch(businessApiProvider);
+  if (api == null) return [];
+
+  final sales = await api.getUnpaidSales();
+  return sales
+      .where((sale) => sale.outstanding > 0)
+      .map(
+        (sale) => UnpaidSaleRow(
+          saleId: sale.id,
+          customerName: sale.displayLabel,
+          outstanding: sale.outstanding,
+          createdAt: sale.saleDate,
+        ),
+      )
+      .toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+}
+
+final unpaidSalesWithOutstandingProvider =
+    FutureProvider<List<UnpaidSaleRow>>((ref) async {
+  if (ref.watch(useCloudDataProvider)) {
+    return _loadCloudUnpaidSales(ref);
+  }
+  return _loadLocalUnpaidSales(ref);
+});
+
+final unpaidCustomersDebtProvider =
+    FutureProvider<List<UnpaidCustomerDebtRow>>((ref) async {
+  final rows = await ref.watch(unpaidSalesWithOutstandingProvider.future);
+  return _groupUnpaidRows(rows);
+});
+
+final recordSalePaymentProvider = Provider<
+    Future<void> Function({
+      required int saleId,
+      required double amount,
+      required String method,
+    })>((ref) {
+  return ({required int saleId, required double amount, required String method}) async {
+    final api = ref.read(businessApiProvider);
+    if (api != null) {
+      await api.recordSalePayment(
+        saleId: saleId,
+        amount: amount,
+        paymentMethod: method,
+      );
+      ref.invalidate(apiSalesProvider);
+      ref.invalidate(apiDashboardProvider);
+      ref.invalidate(apiTodaySalesProvider);
+      ref.invalidate(unpaidCustomersDebtProvider);
+      ref.invalidate(unpaidSalesWithOutstandingProvider);
+      return;
+    }
+
+    final db = ref.read(databaseProvider);
+    await db.addPayment(saleId: saleId, amount: amount, method: method);
+  };
 });
 
 final addUnpaidSaleProvider = Provider<
@@ -126,7 +158,6 @@ final addUnpaidSaleProvider = Provider<
       required int quantity,
       required double totalAmount,
     })>((ref) {
-  final db = ref.watch(databaseProvider);
   return ({
     required String customerName,
     required int quantity,
@@ -134,8 +165,7 @@ final addUnpaidSaleProvider = Provider<
   }) async {
     if (quantity <= 0 || totalAmount <= 0) return;
 
-    // We store the provided `quantity` in `meatCount` for now since the
-    // unpaid entry only captures a single quantity field.
+    final db = ref.read(databaseProvider);
     await db.addSaleEntry(
       date: DateTime.now(),
       totalRevenue: totalAmount,
@@ -148,3 +178,10 @@ final addUnpaidSaleProvider = Provider<
   };
 });
 
+void refreshUnpaidProviders(WidgetRef ref) {
+  ref.invalidate(unpaidCustomersDebtProvider);
+  ref.invalidate(unpaidSalesWithOutstandingProvider);
+  ref.invalidate(apiSalesProvider);
+  ref.invalidate(apiDashboardProvider);
+  ref.invalidate(apiTodaySalesProvider);
+}

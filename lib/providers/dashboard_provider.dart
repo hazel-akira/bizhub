@@ -26,7 +26,7 @@ final todayStatsProvider = FutureProvider<
       return (
         totalSales: dash.todaySales,
         totalPayments: dash.todaySales,
-        pendingPayments: 0.0,
+        pendingPayments: dash.pendingCredit,
         totalExpenses: dash.todayExpenses,
         profit: dash.todayProfit,
         productsCount: dash.productsCount,

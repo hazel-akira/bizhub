@@ -105,15 +105,147 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     _refreshSalesUI();
   }
 
+  Future<void> _recordApiPaymentDialog(ApiSale sale) async {
+    final amountCtrl =
+        TextEditingController(text: sale.outstanding.toStringAsFixed(0));
+    String method = 'cash';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Record Payment'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Outstanding: KES ${sale.outstanding.toStringAsFixed(0)}',
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: amountCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Payment amount',
+                  prefixText: 'KES ',
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: method,
+                decoration: const InputDecoration(labelText: 'Payment method'),
+                items: const [
+                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                  DropdownMenuItem(value: 'mpesa', child: Text('MPESA')),
+                ],
+                onChanged: (v) {
+                  if (v != null) setLocal(() => method = v);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+    if (amount <= 0) return;
+    await ref.read(recordSalePaymentProvider)(
+      saleId: sale.id,
+      amount: amount,
+      method: method,
+    );
+    _refreshSalesUI();
+  }
+
+  Future<void> _markApiPaidQuick(ApiSale sale) async {
+    if (sale.outstanding <= 0) return;
+    await ref.read(recordSalePaymentProvider)(
+      saleId: sale.id,
+      amount: sale.outstanding,
+      method: 'cash',
+    );
+    _refreshSalesUI();
+  }
+
   Widget _apiSaleTile(ApiSale sale) {
+    final unpaid = !sale.isPaid && sale.outstanding > 0;
+    final time =
+        '${sale.saleDate.hour.toString().padLeft(2, '0')}:${sale.saleDate.minute.toString().padLeft(2, '0')}';
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        title: Text('KES ${sale.totalAmount.toStringAsFixed(0)}'),
-        subtitle: Text(sale.itemsSummary),
-        trailing: Text(
-          sale.paymentMethod.toUpperCase(),
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: unpaid ? Colors.red.shade300 : Colors.green.shade300,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              sale.displayLabel,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(sale.itemsSummary),
+            const SizedBox(height: 4),
+            Text('Total: KES ${sale.totalAmount.toStringAsFixed(0)}'),
+            if (unpaid && sale.amountPaid > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Paid: KES ${sale.amountPaid.toStringAsFixed(0)} · '
+                'Due: KES ${sale.outstanding.toStringAsFixed(0)}',
+                style: TextStyle(color: Colors.orange.shade800, fontSize: 12),
+              ),
+            ],
+            const SizedBox(height: 4),
+            Text(
+              'Time: $time',
+              style: TextStyle(color: Colors.grey[700], fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Chip(
+                  label: Text(unpaid ? 'UNPAID' : 'PAID'),
+                  backgroundColor: unpaid
+                      ? const Color(0xFFFFEBEE)
+                      : const Color(0xFFE8F5E9),
+                  labelStyle: TextStyle(
+                    color: unpaid
+                        ? Colors.red.shade800
+                        : Colors.green.shade800,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                if (unpaid) ...[
+                  OutlinedButton(
+                    onPressed: () => _recordApiPaymentDialog(sale),
+                    child: const Text('Record Payment'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: () => _markApiPaidQuick(sale),
+                    child: const Text('Mark as Paid'),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
     );

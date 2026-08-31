@@ -97,8 +97,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/products/{product}', [ProductController::class, 'destroy']);
 
         Route::get('/sales', [SaleController::class, 'index']);
+        Route::get('/sales/unpaid', [SaleController::class, 'unpaid']);
         Route::get('/sales/{id}', [SaleController::class, 'show']);
         Route::post('/sales', [SaleController::class, 'store']);
+        Route::post('/sales/{id}/payments', [SaleController::class, 'recordPayment']);
 
         Route::get('/expenses', [ExpenseController::class, 'index']);
         Route::post('/expenses', [ExpenseController::class, 'store']);

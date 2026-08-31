@@ -38,6 +38,11 @@ class ApiSale {
     required this.saleDate,
     required this.items,
     this.invoiceNumber,
+    this.customerId,
+    this.customerName,
+    this.amountPaid = 0,
+    this.outstanding = 0,
+    this.isPaid = true,
   });
 
   final int id;
@@ -46,6 +51,11 @@ class ApiSale {
   final DateTime saleDate;
   final List<ApiSaleItem> items;
   final String? invoiceNumber;
+  final int? customerId;
+  final String? customerName;
+  final double amountPaid;
+  final double outstanding;
+  final bool isPaid;
 
   factory ApiSale.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'] as List<dynamic>? ?? [];
@@ -56,10 +66,25 @@ class ApiSale {
       saleDate: DateTime.tryParse(json['sale_date'] as String? ?? '') ??
           DateTime.now(),
       invoiceNumber: json['invoice_number'] as String?,
+      customerId: json['customer_id'] as int?,
+      customerName: json['customer_name'] as String?,
+      amountPaid: _toDouble(json['amount_paid']),
+      outstanding: _toDouble(json['outstanding']),
+      isPaid: json['is_paid'] as bool? ?? false,
       items: rawItems
           .map((e) => ApiSaleItem.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
+  }
+
+  String get displayLabel {
+    if (customerName != null && customerName!.trim().isNotEmpty) {
+      return customerName!.trim();
+    }
+    if (invoiceNumber != null && invoiceNumber!.trim().isNotEmpty) {
+      return invoiceNumber!.trim();
+    }
+    return 'Sale #$id';
   }
 
   String get itemsSummary =>

@@ -59,6 +59,11 @@ class Sale extends Model
         return $this->hasMany(SaleItem::class);
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SalePayment::class);
+    }
+
     public function mpesaTransactions(): HasMany
     {
         return $this->hasMany(MpesaTransaction::class);

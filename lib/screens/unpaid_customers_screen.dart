@@ -15,17 +15,15 @@ class UnpaidCustomersScreen extends ConsumerStatefulWidget {
       _UnpaidCustomersScreenState();
 }
 
-class _UnpaidCustomersScreenState
-    extends ConsumerState<UnpaidCustomersScreen> {
+class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
   Future<void> _markAsPaid(UnpaidCustomerDebtRow row) async {
     if (row.unpaidSales.isEmpty) return;
 
-    // Settle each unpaid sale for this customer.
-    for (final s in row.unpaidSales) {
-      if (s.outstanding <= 0) continue;
-      await ref.read(addPaymentProvider)(
-        saleId: s.sale.id,
-        amount: s.outstanding,
+    for (final sale in row.unpaidSales) {
+      if (sale.outstanding <= 0) continue;
+      await ref.read(recordSalePaymentProvider)(
+        saleId: sale.saleId,
+        amount: sale.outstanding,
         method: 'cash',
       );
     }
@@ -63,14 +61,6 @@ class _UnpaidCustomersScreenState
                     decoration: const InputDecoration(
                       labelText: 'Payment amount (KES)',
                     ),
-                    validator: (v) {
-                      final n = double.tryParse(v ?? '');
-                      if (n == null || n <= 0) return 'Enter a valid amount';
-                      if (n > row.outstanding) {
-                        return 'Cannot exceed outstanding';
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -80,9 +70,9 @@ class _UnpaidCustomersScreenState
                       DropdownMenuItem(value: 'cash', child: Text('Cash')),
                       DropdownMenuItem(value: 'mpesa', child: Text('MPESA')),
                     ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setLocal(() => method = v);
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setLocal(() => method = value);
                     },
                   ),
                 ],
@@ -129,14 +119,13 @@ class _UnpaidCustomersScreenState
     amountController.dispose();
     if (amount <= 0) return;
 
-    // Allocate partial payment from oldest unpaid sales first.
     var remaining = amount;
-    for (final s in row.unpaidSales) {
+    for (final sale in row.unpaidSales) {
       if (remaining <= 0) break;
-      final pay = s.outstanding < remaining ? s.outstanding : remaining;
+      final pay = sale.outstanding < remaining ? sale.outstanding : remaining;
       if (pay <= 0) continue;
-      await ref.read(addPaymentProvider)(
-        saleId: s.sale.id,
+      await ref.read(recordSalePaymentProvider)(
+        saleId: sale.saleId,
         amount: pay,
         method: method,
       );
@@ -151,8 +140,7 @@ class _UnpaidCustomersScreenState
   }
 
   void _refreshUI() {
-    ref.invalidate(unpaidCustomersDebtProvider);
-    ref.invalidate(unpaidSalesWithOutstandingProvider);
+    refreshUnpaidProviders(ref);
     ref.invalidate(salesListItemsProvider);
     ref.invalidate(allSalesProvider);
     ref.invalidate(allPaymentsProvider);
@@ -169,17 +157,29 @@ class _UnpaidCustomersScreenState
         title: const Text('Unpaid Customers'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       ),
-      body: unpaidAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (rows) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _refreshUI();
+          await ref.read(unpaidCustomersDebtProvider.future);
+        },
+        child: unpaidAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text('Error: $e'),
+              ),
+            ],
+          ),
+          data: (rows) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
               children: [
                 Text(
-                  'Unpaid sales',
+                  'Credit / unpaid sales',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -196,63 +196,72 @@ class _UnpaidCustomersScreenState
                     ),
                   )
                 else
-                  ...rows.map((row) => Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                row.customerName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
-                                ),
+                  ...rows.map(
+                    (row) => Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              row.customerName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
                               ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Outstanding: KES ${row.outstanding.toStringAsFixed(0)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: Colors.red.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Date: ${_formatDate(row.date)}',
+                              style: TextStyle(color: Colors.grey[700]),
+                            ),
+                            if (row.unpaidSales.length > 1) ...[
                               const SizedBox(height: 6),
                               Text(
-                                'Outstanding: KES ${row.outstanding.toStringAsFixed(0)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.red.shade700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Date: ${_formatDate(row.date)}',
-                                style: TextStyle(color: Colors.grey[700]),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: FilledButton(
-                                      onPressed: () => _markAsPaid(row),
-                                      child: const Text('Mark as Paid'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: () => _recordPartialPayment(row),
-                                      child: const Text('Partial Payment'),
-                                    ),
-                                  ),
-                                ],
+                                '${row.unpaidSales.length} unpaid sales',
+                                style: TextStyle(color: Colors.grey[600]),
                               ),
                             ],
-                          ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: () => _markAsPaid(row),
+                                    child: const Text('Mark as Paid'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () =>
+                                        _recordPartialPayment(row),
+                                    child: const Text('Partial Payment'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      )),
+                      ),
+                    ),
+                  ),
               ],
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
 
   String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
 }
-

@@ -8,6 +8,7 @@ class ApiDashboard {
     this.todayUnitsSold = 0,
     this.topProductToday,
     this.lowStockCount = 0,
+    this.pendingCredit = 0,
   });
 
   final double todaySales;
@@ -18,6 +19,7 @@ class ApiDashboard {
   final int todayUnitsSold;
   final String? topProductToday;
   final int lowStockCount;
+  final double pendingCredit;
 
   factory ApiDashboard.fromJson(Map<String, dynamic> json) {
     return ApiDashboard(
@@ -29,6 +31,7 @@ class ApiDashboard {
       todayUnitsSold: json['today_units_sold'] as int? ?? 0,
       topProductToday: json['top_product_today'] as String?,
       lowStockCount: json['low_stock_count'] as int? ?? 0,
+      pendingCredit: _toDouble(json['pending_credit']),
     );
   }
 

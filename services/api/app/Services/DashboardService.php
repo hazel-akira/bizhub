@@ -44,6 +44,8 @@ class DashboardService
             ->where('stock_quantity', '<=', 5)
             ->count();
 
+        $pendingCredit = app(SaleService::class)->unpaidTotalForBusiness($businessId);
+
         return [
             'today_sales' => $todaySales,
             'today_expenses' => $todayExpenses,
@@ -53,6 +55,7 @@ class DashboardService
             'today_units_sold' => $todayUnitsSold,
             'top_product_today' => $topProductToday?->product?->name,
             'low_stock_count' => $lowStockCount,
+            'pending_credit' => $pendingCredit,
         ];
     }
 }
