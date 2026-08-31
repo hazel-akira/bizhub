@@ -66,8 +66,7 @@ Future<bool> openWhatsAppChat(String phone, {String? message}) async {
 
 /// Shares text (user can pick WhatsApp from share sheet)
 Future<void> shareToWhatsApp(String text) async {
-  await Share.share(
-    text,
-    subject: 'Samosa payment reminder',
+  await SharePlus.instance.share(
+    ShareParams(text: text, subject: 'Credit payment reminder'),
   );
 }
