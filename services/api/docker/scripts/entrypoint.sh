@@ -5,6 +5,13 @@ cd /var/www/html
 
 echo "[entrypoint] Starting Akira Bites API..."
 
+# Neon "pooled" host breaks Laravel migrations — auto-switch to direct host.
+if echo "${DB_HOST:-}" | grep -q '\-pooler\.'; then
+    DB_HOST="$(printf '%s' "$DB_HOST" | sed 's/-pooler\././')"
+    export DB_HOST
+    echo "[entrypoint] WARNING: Neon pooler host detected; using direct host for migrations: ${DB_HOST}"
+fi
+
 # Wait for PostgreSQL when configured
 if [ "${DB_CONNECTION:-}" = "pgsql" ] && [ -n "${DB_HOST:-}" ]; then
     echo "[entrypoint] Waiting for PostgreSQL at ${DB_HOST}:${DB_PORT:-5432}..."
@@ -32,10 +39,6 @@ php artisan storage:link --force 2>/dev/null || true
 
 # Database migrations
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
-    if echo "${DB_HOST:-}" | grep -q '\-pooler\.'; then
-        echo "[entrypoint] ERROR: DB_HOST uses Neon pooler (-pooler). Use the DIRECT host from Neon (no -pooler) or migrations will fail."
-        exit 1
-    fi
     echo "[entrypoint] Running migrations..."
     php artisan migrate --force --no-interaction
 fi
