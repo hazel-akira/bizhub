@@ -32,6 +32,10 @@ php artisan storage:link --force 2>/dev/null || true
 
 # Database migrations
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
+    if echo "${DB_HOST:-}" | grep -q '\-pooler\.'; then
+        echo "[entrypoint] ERROR: DB_HOST uses Neon pooler (-pooler). Use the DIRECT host from Neon (no -pooler) or migrations will fail."
+        exit 1
+    fi
     echo "[entrypoint] Running migrations..."
     php artisan migrate --force --no-interaction
 fi
