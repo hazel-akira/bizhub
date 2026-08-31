@@ -17,10 +17,8 @@ return [
         explode(',', env('FRONTEND_URL', 'http://localhost:3000'))
     )),
 
-    // Flutter web dev server uses a random localhost port — allow all local origins.
-    'allowed_origins_patterns' => env('APP_ENV') === 'local'
-        ? $localPatterns
-        : [],
+    // Flutter web dev uses random localhost ports; native Android/iOS ignore CORS.
+    'allowed_origins_patterns' => $localPatterns,
 
     'allowed_headers' => ['*'],
 

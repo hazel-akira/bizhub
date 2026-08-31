@@ -24,11 +24,27 @@ use Illuminate\Support\Facades\Route;
 | Every business route is scoped to auth()->user()->business_id
 */
 
-Route::get('/health', fn () => response()->json([
-    'ok' => true,
-    'service' => 'Akira Bites API',
-    'database' => config('database.connections.pgsql.database'),
-]));
+Route::get('/health', function () {
+    $connection = config('database.default');
+    $driver = config("database.connections.{$connection}.driver");
+    $database = config("database.connections.{$connection}.database");
+
+    try {
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        \Illuminate\Support\Facades\DB::select('select 1');
+        $dbOk = true;
+    } catch (\Throwable $e) {
+        $dbOk = false;
+    }
+
+    return response()->json([
+        'ok' => $dbOk,
+        'service' => 'Akira Bites API',
+        'database_driver' => $driver,
+        'database' => $database,
+        'database_ok' => $dbOk,
+    ], $dbOk ? 200 : 503);
+});
 
 // ── Platform (public) ─────────────────────────────────────────────────────
 Route::get('/business-types', [BusinessTypeController::class, 'index']);

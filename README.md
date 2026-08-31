@@ -61,7 +61,7 @@ flutter run
 
 ## Laravel API (PostgreSQL)
 
-The backend API lives in [`services/api/`](services/api/). It powers auth, the web client, and M-Pesa.
+The backend API lives in `[services/api/](services/api/)`. It powers auth, the web client, and M-Pesa.
 
 **Start the API** (always run this before using the Flutter app):
 
@@ -69,16 +69,17 @@ The backend API lives in [`services/api/`](services/api/). It powers auth, the w
 ./scripts/start-api.sh
 ```
 
-Verify: open http://127.0.0.1:8000/api/health — should return `{"ok":true,...}`.
+Verify: open [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health) — should return `{"ok":true,...}`.
 
 **Flutter app:** on the login screen, use **API connection → Test**. Default URLs:
+
 - Linux desktop: `http://127.0.0.1:8000`
 - Android emulator: `http://10.0.2.2:8000`
 - Physical phone: `http://YOUR_PC_LAN_IP:8000`
 
-See [`services/api/README.md`](services/api/README.md) for database setup and endpoints.
+See `[services/api/README.md](services/api/README.md)` for database setup and endpoints.
 
-**Production:** Play Store for the Android app; Fly.io + Neon for the API. See [`DEPLOY.md`](DEPLOY.md).
+**Production:** Play Store for the Android app; Fly.io + Neon for the API. See `[DEPLOY.md](DEPLOY.md)`.
 
 ---
 
@@ -90,8 +91,8 @@ See [`services/api/README.md`](services/api/README.md) for database setup and en
 cp android/key.properties.example android/key.properties
 ```
 
-2. Edit `android/key.properties` with your real upload keystore values.
-3. Build with production API URL and Google Web client ID:
+1. Edit `android/key.properties` with your real upload keystore values.
+2. Build with production API URL and Google Web client ID:
 
 ```bash
 flutter build appbundle --release \
@@ -100,6 +101,7 @@ flutter build appbundle --release \
 ```
 
 Notes:
+
 - Release builds require `android/key.properties`.
 - Production endpoint should be HTTPS.
 - In release mode, API connection override is disabled in-app.
@@ -108,20 +110,28 @@ Notes:
 ### Google Sign-In setup
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create OAuth client IDs:
-   - **Web** — used as `GOOGLE_WEB_CLIENT_ID` in Flutter and in API `GOOGLE_CLIENT_IDS`
-   - **Android** — package `app.akirabizhub.pos`, add your SHA-1 fingerprints
+  - **Web** — used as `GOOGLE_WEB_CLIENT_ID` in Flutter and in API `GOOGLE_CLIENT_IDS`
+  - **Android** — package `app.akirabizhub.pos`, add your SHA-1 fingerprints
 2. Add the Web client ID to `services/api/.env`:
-   ```
+  ```
    GOOGLE_CLIENT_IDS=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
-   ```
+  ```
 3. Pass the Web client ID when running or building the Flutter app:
-   ```
+  ```
    --dart-define=GOOGLE_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
-   ```
+  ```
 
 ---
 
 ## Docs
 
-- [`DEPLOY.md`](DEPLOY.md) — Fly.io API + Google Play
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Project structure and features
+- `[DEPLOY.md](DEPLOY.md)` — Fly.io API + Google Play
+- `[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)` — Project structure and features
+
+
+
+flutter run \
+
+  --dart-define=API_BASE_URL=[https://akira-flow-api.onrender.com/](https://akira-flow-api.onrender.com/)
+
+  --dart-define=GOOGLE_WEB_CLIENT_ID=[445326255543-m8hh5al6s529h1c97h4v1ueif4e0hdgd.apps.googleusercontent.com](http://445326255543-m8hh5al6s529h1c97h4v1ueif4e0hdgd.apps.googleusercontent.com)

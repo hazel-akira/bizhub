@@ -5,6 +5,24 @@ cd /var/www/html
 
 echo "[entrypoint] Starting Akira Bites API..."
 
+if [ "${APP_ENV:-local}" = "production" ]; then
+    missing=""
+    for var in DB_CONNECTION DB_HOST DB_DATABASE DB_USERNAME DB_PASSWORD APP_KEY; do
+        eval "val=\${$var:-}"
+        if [ -z "$val" ]; then
+            missing="$missing $var"
+        fi
+    done
+    if [ -n "$missing" ]; then
+        echo "[entrypoint] ERROR: Missing required production env:$missing"
+        exit 1
+    fi
+    if [ "${DB_CONNECTION}" != "pgsql" ]; then
+        echo "[entrypoint] ERROR: DB_CONNECTION must be pgsql in production (got: ${DB_CONNECTION})."
+        exit 1
+    fi
+fi
+
 # Neon "pooled" host breaks Laravel migrations — auto-switch to direct host.
 if echo "${DB_HOST:-}" | grep -q '\-pooler\.'; then
     DB_HOST="$(printf '%s' "$DB_HOST" | sed 's/-pooler\././')"
@@ -31,8 +49,8 @@ mkdir -p \
     storage/logs \
     bootstrap/cache
 
-chown -R www-data:www-data storage bootstrap/cache
-chmod -R 775 storage bootstrap/cache
+chown -R www-data:www-data storage bootstrap/cache database
+chmod -R 775 storage bootstrap/cache database
 
 # Public storage symlink for product images
 php artisan storage:link --force 2>/dev/null || true
@@ -61,6 +79,10 @@ else
     php artisan route:clear --quiet || true
     php artisan view:clear --quiet || true
 fi
+
+# config:cache creates root-owned files — php-fpm runs as www-data.
+chown -R www-data:www-data storage bootstrap/cache database
+chmod -R 775 storage bootstrap/cache database
 
 echo "[entrypoint] Ready — handing off to supervisord."
 exec "$@"
