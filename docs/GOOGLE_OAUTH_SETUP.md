@@ -219,6 +219,44 @@ If a user registered with email/password first, signing in with the same Google 
 
 ## Troubleshooting
 
+### Error 28444 — "Developer console is not set up correctly"
+
+This happens **after you pick a Google account** on Android. It is **not** an API/backend bug — Google rejects the app because the **Android OAuth client** is missing or wrong in Google Cloud Console.
+
+**Fix checklist (all in the same GCP project as your Web client ID):**
+
+| Step | Action |
+|------|--------|
+| 1 | [Google Cloud Console](https://console.cloud.google.com/) → select project **445326255543** (or your project) |
+| 2 | **OAuth consent screen** → configured, your Gmail added as **Test user** |
+| 3 | **Credentials → Create OAuth client ID → Android** |
+| 4 | Package name: `app.akirabizhub.pos` |
+| 5 | SHA-1: add **both** fingerprints below |
+| 6 | Web client must exist (used as `GOOGLE_WEB_CLIENT_ID` / `serverClientId`) |
+| 7 | Wait **5–10 minutes**, uninstall app, `flutter clean && flutter run` |
+
+**SHA-1 fingerprints for this repo:**
+
+| Build | SHA-1 |
+|-------|-------|
+| Debug (`flutter run`) | `09:AD:A7:5C:1C:41:CD:6C:C8:8D:00:34:8D:A5:D8:A1:3D:CC:5B:0B` |
+| Release (upload keystore) | `44:C7:97:1C:D6:69:DB:81:D6:78:BB:83:63:AA:7F:A0:C4:0D:8C:32` |
+| Play Store | Also add **App signing key SHA-1** from Play Console → Setup → App signing |
+
+Run `./scripts/android-google-oauth-checklist.sh` to print these values anytime.
+
+**Common mistakes:**
+
+- Android OAuth client created in a **different** GCP project than the Web client ID
+- Using the **Android** client ID as `GOOGLE_WEB_CLIENT_ID` (must be **Web** client ID)
+- Wrong package name (must be `app.akirabizhub.pos`, not `com.bizhub.samosaTracker`)
+- SHA-1 from a different PC’s debug keystore — each machine has its own debug SHA-1
+- Testing on emulator with broken Google Play Services — try a physical device
+
+---
+
+### Other issues
+
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `PlatformException(sign_in_failed, ...)` code **10** | Android SHA-1 not registered | Add debug + release + Play App Signing SHA-1 in Google Cloud |

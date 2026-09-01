@@ -135,3 +135,7 @@ flutter run \
   --dart-define=API_BASE_URL=[https://akira-flow-api.onrender.com/](https://akira-flow-api.onrender.com/)
 
   --dart-define=GOOGLE_WEB_CLIENT_ID=[445326255543-m8hh5al6s529h1c97h4v1ueif4e0hdgd.apps.googleusercontent.com](http://445326255543-m8hh5al6s529h1c97h4v1ueif4e0hdgd.apps.googleusercontent.com)
+
+  flutter run \
+  --dart-define=API_BASE_URL=https://akira-flow-api.onrender.com \
+  --dart-define=GOOGLE_WEB_CLIENT_ID=445326255543-m8hh5al6s529h1c97h4v1ueif4e0hdgd.apps.googleusercontent.com

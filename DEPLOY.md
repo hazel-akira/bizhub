@@ -1,6 +1,6 @@
 # Deploy — API (Fly.io) + Android (Play Store)
 
-The cashier app goes to **Google Play**. Only the Laravel API needs a host, because Safaricom must call `POST /api/mpesa/callback` on a public HTTPS URL.
+The cashier app goes to **Google Play**. Only the Laravel API needs a host, because Safaricom must call `POST /api/payments/stk-callback` on a public HTTPS URL (do **not** use `/api/mpesa/callback` — Daraja rejects URLs containing "mpesa").
 
 ## Cost
 
@@ -48,7 +48,7 @@ fly secrets set \
   TRUSTED_PROXIES='*' \
   RUN_MIGRATIONS=true \
   MPESA_BASE_URL=https://sandbox.safaricom.co.ke \
-  MPESA_CALLBACK_URL=https://YOUR-APP.fly.dev/api/mpesa/callback \
+  MPESA_CALLBACK_URL=https://YOUR-APP.fly.dev/api/payments/stk-callback \
   GOOGLE_CLIENT_IDS=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
 ```
 

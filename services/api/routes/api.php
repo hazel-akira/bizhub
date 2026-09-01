@@ -46,6 +46,7 @@ Route::get('/health', function () {
         'database_ok' => $dbOk,
         'global_categories' => $dbOk ? \App\Models\GlobalCategory::count() : null,
         'global_products' => $dbOk ? \App\Models\GlobalProduct::count() : null,
+        'mpesa_callback_url' => app(\App\Services\MpesaService::class)->publicCallbackUrl(),
     ], $dbOk ? 200 : 503);
 });
 
@@ -134,5 +135,6 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Safaricom Daraja webhook — must stay public (no auth:sanctum).
-// Also exclude this path from CSRF in bootstrap/app.php (validateCsrfTokens except).
-Route::post('/mpesa/callback', [MpesaController::class, 'callback']);
+// Use /payments/stk-callback (Safaricom rejects URLs containing "mpesa" in the path).
+Route::post('/payments/stk-callback', [MpesaController::class, 'callback']);
+Route::post('/mpesa/callback', [MpesaController::class, 'callback']); // legacy alias

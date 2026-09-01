@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../services/google_auth_service.dart';
 import '../widgets/api_connection_card.dart';
 import '../widgets/google_sign_in_button.dart';
+import '../widgets/google_sign_in_setup_dialog.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -64,6 +65,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     } on GoogleAuthCancelledException {
       return;
+    } on GoogleAuthConsoleSetupException {
+      if (!mounted) return;
+      await showGoogleSignInSetupDialog(context);
     } on GoogleAuthNotConfiguredException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -63,7 +63,7 @@ services:
       - key: MPESA_BASE_URL
         value: https://sandbox.safaricom.co.ke
       - key: MPESA_CALLBACK_URL
-        value: https://akira-flow-api.onrender.com/api/mpesa/callback
+        value: https://akira-flow-api.onrender.com/api/payments/stk-callback
       - key: GOOGLE_CLIENT_IDS
         sync: false
       - key: TRUSTED_PROXIES

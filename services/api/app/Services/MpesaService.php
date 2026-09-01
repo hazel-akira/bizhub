@@ -297,7 +297,7 @@ class MpesaService
                 'PartyA' => $phone,
                 'PartyB' => $stk['party_b'],
                 'PhoneNumber' => $phone,
-                'CallBackURL' => config('services.mpesa.callback_url'),
+                'CallBackURL' => $this->resolveCallbackUrl(),
                 'AccountReference' => Str::limit($transaction->reference ?? 'AkiraFlow', 12, ''),
                 'TransactionDesc' => 'Sale payment',
             ]);
@@ -406,6 +406,11 @@ class MpesaService
             }
         }
 
+        if ($message !== null && stripos($message, 'invalid callback') !== false) {
+            return 'Invalid M-Pesa callback URL. Safaricom rejects URLs containing "mpesa" in the path. '
+                .'Set MPESA_CALLBACK_URL to https://YOUR-DOMAIN/api/payments/stk-callback on the server.';
+        }
+
         if ($message !== null && stripos($message, 'invalid transaction type') !== false) {
             $typeLabel = $config?->account_type?->label() ?? 'unknown';
             $shortcode = $config?->shortcode ?? '?';
@@ -426,6 +431,63 @@ class MpesaService
     private function tokenCacheKey(int $businessId): string
     {
         return 'mpesa.oauth.'.$businessId;
+    }
+
+    /** @return array{url: string, valid: bool, error?: string} */
+    public function publicCallbackUrl(): array
+    {
+        try {
+            return [
+                'url' => $this->resolveCallbackUrl(),
+                'valid' => true,
+            ];
+        } catch (ValidationException $e) {
+            return [
+                'url' => (string) config('services.mpesa.callback_url'),
+                'valid' => false,
+                'error' => collect($e->errors())->flatten()->first(),
+            ];
+        }
+    }
+
+    private function resolveCallbackUrl(): string
+    {
+        $configured = trim((string) config('services.mpesa.callback_url', ''));
+        $url = $configured;
+
+        if ($url === '') {
+            $base = rtrim((string) config('app.url'), '/');
+            if ($base === '') {
+                throw ValidationException::withMessages([
+                    'mpesa' => [
+                        'M-Pesa callback URL is not configured. Set MPESA_CALLBACK_URL or APP_URL on the server.',
+                    ],
+                ]);
+            }
+            $url = $base.'/api/payments/stk-callback';
+        }
+
+        $url = rtrim($url, '/');
+
+        if (! str_starts_with(strtolower($url), 'https://')) {
+            throw ValidationException::withMessages([
+                'mpesa' => [
+                    'M-Pesa callback URL must use HTTPS. Current value: '.$url,
+                ],
+            ]);
+        }
+
+        $path = parse_url($url, PHP_URL_PATH) ?? '';
+        if (preg_match('/mpesa/i', $path)) {
+            throw ValidationException::withMessages([
+                'mpesa' => [
+                    'Callback URL must not contain "mpesa" in the path — Safaricom rejects it (error 400.002.02). '
+                    .'Use https://YOUR-DOMAIN/api/payments/stk-callback instead of /api/mpesa/callback.',
+                ],
+            ]);
+        }
+
+        return $url;
     }
 
     private function callbackMetadataValue(array $body, string $name): mixed

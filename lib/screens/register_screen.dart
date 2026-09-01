@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/google_auth_config.dart';
 import '../main.dart';
 import '../models/business_type.dart';
+import '../models/google_auth_exceptions.dart';
 import '../providers/auth_provider.dart';
 import '../services/business_type_service.dart';
 import '../services/google_auth_service.dart';
 import '../widgets/api_connection_card.dart';
 import '../widgets/google_sign_in_button.dart';
+import '../widgets/google_sign_in_setup_dialog.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({
@@ -148,6 +150,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       );
     } on GoogleAuthCancelledException {
       return;
+    } on GoogleAuthConsoleSetupException {
+      if (!mounted) return;
+      await showGoogleSignInSetupDialog(context);
     } on GoogleAuthNotConfiguredException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -36,7 +36,24 @@ if [ "${DB_CONNECTION:-}" = "pgsql" ] && [ -n "${DB_HOST:-}" ]; then
     until pg_isready -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "${DB_USERNAME:-postgres}" -q; do
         sleep 2
     done
-    echo "[entrypoint] PostgreSQL is ready."
+    echo "[entrypoint] PostgreSQL is accepting connections."
+
+    if [ -n "${DB_PASSWORD:-}" ] && [ -n "${DB_DATABASE:-}" ] && [ -n "${DB_USERNAME:-}" ]; then
+        echo "[entrypoint] Verifying database credentials..."
+        if ! PGPASSWORD="$DB_PASSWORD" psql \
+            "host=${DB_HOST} port=${DB_PORT:-5432} dbname=${DB_DATABASE} user=${DB_USERNAME} sslmode=${DB_SSLMODE:-require}" \
+            -c 'SELECT 1' -q -t >/dev/null 2>&1; then
+            echo "[entrypoint] ERROR: PostgreSQL password authentication failed for user '${DB_USERNAME}'."
+            echo "[entrypoint] Fix: In Neon → Connection details → copy the password (or reset it),"
+            echo "[entrypoint] then set DB_PASSWORD on Render (no quotes, no trailing spaces)."
+            echo "[entrypoint] Host must be DIRECT (ep-….neon.tech), not -pooler."
+            exit 1
+        fi
+        echo "[entrypoint] Database credentials OK."
+    elif [ "${APP_ENV:-local}" = "production" ]; then
+        echo "[entrypoint] ERROR: DB_PASSWORD, DB_DATABASE, and DB_USERNAME are required for PostgreSQL."
+        exit 1
+    fi
 fi
 
 # Ensure writable directories (supports mounted volumes)

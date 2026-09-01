@@ -41,7 +41,10 @@ return [
         'consumer_secret' => env('MPESA_CONSUMER_SECRET'),
         'shortcode' => env('MPESA_SHORTCODE'),
         'passkey' => env('MPESA_PASSKEY'),
-        'callback_url' => env('MPESA_CALLBACK_URL'),
+        'callback_url' => env(
+            'MPESA_CALLBACK_URL',
+            rtrim((string) env('APP_URL', ''), '/').'/api/payments/stk-callback',
+        ),
     ],
 
     'google' => [

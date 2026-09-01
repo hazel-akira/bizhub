@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../core/google_auth_config.dart';
+import '../models/google_auth_exceptions.dart';
 
 class GoogleSignInAccountInfo {
   const GoogleSignInAccountInfo({
@@ -74,8 +75,21 @@ class GoogleAuthService {
           e.code == GoogleSignInExceptionCode.interrupted) {
         throw const GoogleAuthCancelledException();
       }
+      if (_isConsoleSetupError(e)) {
+        throw GoogleAuthConsoleSetupException(details: e.toString());
+      }
       rethrow;
     }
+  }
+
+  bool _isConsoleSetupError(GoogleSignInException e) {
+    if (e.code == GoogleSignInExceptionCode.clientConfigurationError) {
+      return true;
+    }
+    final message = e.toString();
+    return message.contains('28444') ||
+        message.contains('Developer console is not set up correctly') ||
+        message.contains('10:');
   }
 
   Future<void> signOut() async {

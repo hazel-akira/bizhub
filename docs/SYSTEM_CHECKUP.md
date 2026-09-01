@@ -57,7 +57,7 @@ DB_SSLMODE=require
 RUN_MIGRATIONS=true
 RUN_SEEDER=false
 GOOGLE_CLIENT_IDS=...
-MPESA_CALLBACK_URL=https://akira-flow-api.onrender.com/api/mpesa/callback
+MPESA_CALLBACK_URL=https://akira-flow-api.onrender.com/api/payments/stk-callback
 ```
 
 Redeploy and confirm `/api/health` shows `pgsql`.

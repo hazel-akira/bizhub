@@ -34,7 +34,7 @@ class MpesaPaymentTest extends TestCase
             'status' => MpesaTransactionStatus::Pending,
         ]);
 
-        $response = $this->postJson('/api/mpesa/callback', [
+        $response = $this->postJson('/api/payments/stk-callback', [
             'Body' => [
                 'stkCallback' => [
                     'MerchantRequestID' => 'm-1',
@@ -81,7 +81,7 @@ class MpesaPaymentTest extends TestCase
             'status' => MpesaTransactionStatus::Pending,
         ]);
 
-        $this->postJson('/api/mpesa/callback', [
+        $this->postJson('/api/payments/stk-callback', [
             'Body' => [
                 'stkCallback' => [
                     'CheckoutRequestID' => 'ws_CO_test_fail',
@@ -184,5 +184,29 @@ class MpesaPaymentTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonPath('data.account_type', 'paybill');
+    }
+
+    public function test_callback_url_with_mpesa_in_path_is_rejected(): void
+    {
+        config([
+            'services.mpesa.callback_url' => 'https://example.com/api/mpesa/callback',
+        ]);
+
+        $info = app(\App\Services\MpesaService::class)->publicCallbackUrl();
+
+        $this->assertFalse($info['valid']);
+        $this->assertStringContainsString('mpesa', strtolower($info['error'] ?? ''));
+    }
+
+    public function test_valid_callback_url_is_accepted(): void
+    {
+        config([
+            'services.mpesa.callback_url' => 'https://example.com/api/payments/stk-callback',
+        ]);
+
+        $info = app(\App\Services\MpesaService::class)->publicCallbackUrl();
+
+        $this->assertTrue($info['valid']);
+        $this->assertSame('https://example.com/api/payments/stk-callback', $info['url']);
     }
 }

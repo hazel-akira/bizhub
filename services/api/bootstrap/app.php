@@ -30,9 +30,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'business' => EnsureBusinessAccess::class,
         ]);
 
-        // Safaricom posts to /api/mpesa/callback with no CSRF token.
-        // Laravel 11+ moved VerifyCsrfToken exceptions here (there is no app/Http/Middleware/VerifyCsrfToken.php).
+        // Safaricom posts to the STK callback with no CSRF token.
+        // Path must NOT contain "mpesa" — Daraja rejects those URLs.
         $middleware->validateCsrfTokens(except: [
+            'api/payments/stk-callback',
             'api/mpesa/callback',
         ]);
     })
