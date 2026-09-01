@@ -5,6 +5,12 @@ cd /var/www/html
 
 echo "[entrypoint] Starting Akira Bites API..."
 
+# libpq reads PG* env vars globally. Neon docs sometimes suggest PGHOST/PGCHANNELBINDING,
+# but those break Laravel (www-data cannot read /root/.postgresql certs). Use DB_* only.
+unset PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD PGCHANNELBINDING \
+  PGSSLCERT PGSSLKEY PGSSLROOTCERT PGSSLCRL PGREQUIREPEER PGCONNECT_TIMEOUT
+export PGSSLMODE="${DB_SSLMODE:-require}"
+
 if [ "${APP_ENV:-local}" = "production" ]; then
     missing=""
     for var in DB_CONNECTION DB_HOST DB_DATABASE DB_USERNAME DB_PASSWORD APP_KEY; do

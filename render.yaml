@@ -55,7 +55,7 @@ services:
       - key: FILESYSTEM_DISK
         value: local
       - key: QUEUE_CONNECTION
-        value: database
+        value: sync
       - key: CACHE_STORE
         value: database
       - key: MAIL_MAILER
