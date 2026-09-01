@@ -112,5 +112,14 @@ fi
 chown -R www-data:www-data storage bootstrap/cache database
 chmod -R 775 storage bootstrap/cache database
 
+# Render (and similar hosts) set PORT=10000; Fly/local use 8080.
+PORT="${PORT:-8080}"
+export PORT
+if grep -q 'listen 8080;' /etc/nginx/conf.d/default.conf 2>/dev/null; then
+    sed -i "s/listen 8080;/listen ${PORT};/" /etc/nginx/conf.d/default.conf
+    sed -i "s/listen \\[::\\]:8080;/listen [::]:${PORT};/" /etc/nginx/conf.d/default.conf
+    echo "[entrypoint] Nginx listening on 0.0.0.0:${PORT} (Render PORT env)"
+fi
+
 echo "[entrypoint] Ready — handing off to supervisord."
 exec "$@"

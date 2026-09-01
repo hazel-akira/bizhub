@@ -11,6 +11,7 @@ services:
     dockerfilePath: Dockerfile
     plan: starter
     healthCheckPath: /up
+    # Render sets PORT=10000; entrypoint.sh configures nginx to listen on $PORT.
     envVars:
       - key: APP_NAME
         value: Akira Bites API
