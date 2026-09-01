@@ -157,13 +157,38 @@ final addUnpaidSaleProvider = Provider<
       required String customerName,
       required int quantity,
       required double totalAmount,
+      int? customerId,
     })>((ref) {
   return ({
     required String customerName,
     required int quantity,
     required double totalAmount,
+    int? customerId,
   }) async {
     if (quantity <= 0 || totalAmount <= 0) return;
+
+    final api = ref.read(businessApiProvider);
+    if (api != null) {
+      final products = await api.ensureDefaultProducts();
+      final meat = products['meat'];
+      final ndengu = products['ndengu'];
+      final product = meat ?? ndengu;
+      if (product == null) {
+        throw Exception('Add products in Inventory before recording unpaid sales');
+      }
+
+      await api.createSaleWithItems(
+        items: [(productId: product.id, quantity: quantity)],
+        paymentMethod: 'credit',
+        customerId: customerId,
+      );
+      ref.invalidate(apiSalesProvider);
+      ref.invalidate(apiDashboardProvider);
+      ref.invalidate(apiTodaySalesProvider);
+      ref.invalidate(unpaidCustomersDebtProvider);
+      ref.invalidate(unpaidSalesWithOutstandingProvider);
+      return;
+    }
 
     final db = ref.read(databaseProvider);
     await db.addSaleEntry(
@@ -181,6 +206,7 @@ final addUnpaidSaleProvider = Provider<
 void refreshUnpaidProviders(WidgetRef ref) {
   ref.invalidate(unpaidCustomersDebtProvider);
   ref.invalidate(unpaidSalesWithOutstandingProvider);
+  ref.invalidate(cloudCustomerBalancesProvider);
   ref.invalidate(apiSalesProvider);
   ref.invalidate(apiDashboardProvider);
   ref.invalidate(apiTodaySalesProvider);

@@ -35,6 +35,22 @@ final apiTodaySalesProvider = FutureProvider<List<ApiSale>>((ref) async {
   }).toList();
 });
 
+/// Outstanding balance per customer id (cloud unpaid sales).
+final cloudCustomerBalancesProvider =
+    FutureProvider<Map<int, double>>((ref) async {
+  final api = ref.watch(businessApiProvider);
+  if (api == null) return {};
+
+  final unpaid = await api.getUnpaidSales();
+  final balances = <int, double>{};
+  for (final sale in unpaid) {
+    final id = sale.customerId;
+    if (id == null) continue;
+    balances[id] = (balances[id] ?? 0) + sale.outstanding;
+  }
+  return balances;
+});
+
 final apiExpensesProvider = FutureProvider<List<ApiExpense>>((ref) async {
   final api = ref.watch(businessApiProvider);
   if (api == null) return [];

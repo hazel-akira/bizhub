@@ -48,8 +48,3 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-
-hooks:
-  user_defines:
-    sqlite3:
-      source: system

@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\RespondsWithJson;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\InitiateStkPushRequest;
 use App\Http\Requests\UpdateMpesaConfigRequest;
+use App\Models\MpesaConfig;
 use App\Models\Order;
 use App\Services\MpesaService;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,10 @@ class MpesaController extends Controller
 
     public function config(Request $request): JsonResponse
     {
-        $config = $request->user()->business?->mpesaConfig;
+        $businessId = $request->user()->business_id;
+        $config = $businessId
+            ? MpesaConfig::query()->where('business_id', $businessId)->first()
+            : null;
 
         return $this->success(
             $config?->toPublicArray() ?? [
@@ -33,8 +37,13 @@ class MpesaController extends Controller
 
     public function updateConfig(UpdateMpesaConfigRequest $request): JsonResponse
     {
+        $business = $request->user()->business;
+        if (! $business) {
+            return $this->error('Complete business setup before saving M-Pesa credentials.', 422);
+        }
+
         $config = $this->mpesa->upsertConfig(
-            $request->user()->business,
+            $business,
             $request->validated(),
         );
 

@@ -126,4 +126,36 @@ class MpesaPaymentTest extends TestCase
             'amount' => 100,
         ])->assertStatus(422);
     }
+
+    public function test_owner_can_save_mpesa_config(): void
+    {
+        $business = Business::create([
+            'name' => 'Test Shop',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '174379',
+            'consumer_key' => 'test-consumer-key',
+            'consumer_secret' => 'test-consumer-secret',
+            'passkey' => 'test-passkey',
+            'account_type' => 'paybill',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.configured', true)
+            ->assertJsonPath('data.shortcode', '174379');
+
+        $this->getJson('/api/mpesa/config')
+            ->assertOk()
+            ->assertJsonPath('data.configured', true);
+    }
 }

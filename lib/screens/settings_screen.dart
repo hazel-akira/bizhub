@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/api_data_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/business_api_provider.dart';
 import '../providers/database_provider.dart';
 import '../services/sales_reminder_service.dart';
 import '../widgets/mpesa_settings_card.dart';
@@ -58,9 +60,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
 
-    final db = ref.read(databaseProvider);
-    final salesToday = await db.getSalesForDate(DateTime.now());
-    await service.syncDailyReminder(hasSalesToday: salesToday.isNotEmpty);
+    try {
+      final useCloud = ref.read(useCloudDataProvider);
+      final hasSalesToday = useCloud
+          ? (await ref.read(apiTodaySalesProvider.future)).isNotEmpty
+          : (await ref.read(databaseProvider).getSalesForDate(DateTime.now()))
+              .isNotEmpty;
+      await service.syncDailyReminder(hasSalesToday: hasSalesToday);
+    } catch (_) {}
   }
 
   @override

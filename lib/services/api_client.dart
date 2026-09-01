@@ -148,6 +148,20 @@ class ApiClient {
     ));
   }
 
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    bool auth = false,
+    Duration? timeout,
+  }) async {
+    return _decode(await _send(
+      () async => _client.delete(
+        await _uri(path),
+        headers: _headers(auth: auth),
+      ),
+      timeout: timeout,
+    ));
+  }
+
   Future<Map<String, dynamic>> postMultipart(
     String path, {
     required String fieldName,

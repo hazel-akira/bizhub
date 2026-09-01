@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'providers/api_data_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/business_api_provider.dart';
 import 'providers/business_profile_provider.dart';
 import 'providers/business_theme_provider.dart';
 import 'providers/database_provider.dart';
@@ -76,10 +79,14 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
 
   Future<void> _syncSalesReminder() async {
     try {
-      final db = ref.read(databaseProvider);
-      final todaySales = await db.getSalesForDate(DateTime.now());
+      final useCloud = ref.read(useCloudDataProvider);
+      final hasSalesToday = useCloud
+          ? (await ref.read(apiTodaySalesProvider.future)).isNotEmpty
+          : (await ref.read(databaseProvider).getSalesForDate(DateTime.now()))
+              .isNotEmpty;
+
       await SalesReminderService.instance.syncDailyReminder(
-        hasSalesToday: todaySales.isNotEmpty,
+        hasSalesToday: hasSalesToday,
       );
     } catch (_) {}
   }

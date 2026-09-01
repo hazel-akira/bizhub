@@ -1,4 +1,5 @@
 import '../core/constants.dart';
+import '../database/app_database.dart';
 import '../models/api_dashboard.dart';
 import '../models/api_expense.dart';
 import '../models/api_product.dart';
@@ -32,9 +33,7 @@ class BusinessApiService {
     final hasNdengu = products.any(
       (p) => p.name.toLowerCase().contains('ndengu'),
     );
-    final hasMeat = products.any(
-      (p) => p.name.toLowerCase().contains('meat'),
-    );
+    final hasMeat = products.any((p) => p.name.toLowerCase().contains('meat'));
 
     if (!hasNdengu) {
       await _createProduct('Ndengu Samosa', SamosaPrices.ndenguPrice);
@@ -87,6 +86,54 @@ class BusinessApiService {
         .toList();
   }
 
+  Future<List<Customer>> getCustomers() async {
+    final json = await _api.get('/api/customers', auth: true);
+    final list = json['data'] as List<dynamic>? ?? [];
+    return list
+        .map((e) => _customerFromApi(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Customer> createCustomer({
+    required String name,
+    String phone = '',
+  }) async {
+    final json = await _api.post(
+      '/api/customers',
+      auth: true,
+      body: {'name': name, if (phone.isNotEmpty) 'phone': phone},
+    );
+    return _customerFromApi(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<Customer> updateCustomer({
+    required int id,
+    required String name,
+    String phone = '',
+  }) async {
+    final json = await _api.put(
+      '/api/customers/$id',
+      auth: true,
+      body: {'name': name, 'phone': phone},
+    );
+    return _customerFromApi(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<void> deleteCustomer(int id) async {
+    await _api.delete('/api/customers/$id', auth: true);
+  }
+
+  Customer _customerFromApi(Map<String, dynamic> json) {
+    return Customer(
+      id: json['id'] as int,
+      name: json['name'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      createdAt:
+          DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
+    );
+  }
+
   Future<ApiSale> recordSalePayment({
     required int saleId,
     required double amount,
@@ -95,10 +142,7 @@ class BusinessApiService {
     final json = await _api.post(
       '/api/sales/$saleId/payments',
       auth: true,
-      body: {
-        'amount': amount,
-        'payment_method': paymentMethod,
-      },
+      body: {'amount': amount, 'payment_method': paymentMethod},
     );
     return ApiSale.fromJson(json['data'] as Map<String, dynamic>);
   }
@@ -118,10 +162,7 @@ class BusinessApiService {
       });
     }
     if (meatCount > 0 && products['meat'] != null) {
-      items.add({
-        'product_id': products['meat']!.id,
-        'quantity': meatCount,
-      });
+      items.add({'product_id': products['meat']!.id, 'quantity': meatCount});
     }
 
     if (items.isEmpty) {
@@ -155,7 +196,7 @@ class BusinessApiService {
       auth: true,
       body: {
         'payment_method': paymentMethod,
-        if (customerId != null) 'customer_id': customerId,
+        'customer_id': ?customerId,
         'items': items
             .map(
               (item) => {

@@ -6,6 +6,7 @@ import '../core/phone_utils.dart';
 import '../core/whatsapp_helper.dart';
 import '../database/app_database.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/business_api_provider.dart';
 import '../providers/customers_provider.dart';
 import '../providers/sales_provider.dart';
 import '../providers/unpaid_customers_provider.dart';
@@ -190,6 +191,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                           customerName: customer.name,
                                           quantity: qty,
                                           totalAmount: total,
+                                          customerId: customerId,
                                         );
 
                                         ref.invalidate(allSalesProvider);
@@ -314,21 +316,28 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
 
-    final addCustomer = ref.read(addCustomerProvider);
-    final duplicate = await addCustomer(name, phone: phone);
-    if (!mounted) return;
+    try {
+      final addCustomer = ref.read(addCustomerProvider);
+      final duplicate = await addCustomer(name, phone: phone);
+      if (!mounted) return;
 
-    if (duplicate != null) {
-      await _showDuplicateCustomerDialog(duplicate, name);
-      return;
+      if (duplicate != null) {
+        await _showDuplicateCustomerDialog(duplicate, name);
+        return;
+      }
+
+      refreshCustomerRelatedProviders(ref);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Customer added')),
+      );
+      _nameController.clear();
+      _phoneController.clear();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not add customer: $e')),
+      );
     }
-
-    refreshCustomerRelatedProviders(ref);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Customer added')));
-    _nameController.clear();
-    _phoneController.clear();
   }
 
   Future<void> _showDuplicateCustomerDialog(
@@ -748,6 +757,25 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
             const SizedBox(height: 8),
             Consumer(
               builder: (context, ref, _) {
+                final useCloud = ref.watch(useCloudDataProvider);
+                if (useCloud) {
+                  final unpaidAsync = ref.watch(unpaidCustomersDebtProvider);
+                  return unpaidAsync.when(
+                    data: (rows) => rows.isEmpty
+                        ? const SizedBox.shrink()
+                        : Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(
+                                'Unpaid: ${rows.map((e) => '${e.customerName} (KES ${e.outstanding.toStringAsFixed(0)})').join(', ')}',
+                              ),
+                            ),
+                          ),
+                    loading: () => const SizedBox.shrink(),
+                    error: (e, _) => Text('Could not load unpaid sales: $e'),
+                  );
+                }
+
                 final unpaidAsync = ref.watch(unpaidCustomersProvider);
                 return unpaidAsync.when(
                   data: (list) => list.isEmpty

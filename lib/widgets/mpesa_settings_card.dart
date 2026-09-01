@@ -57,8 +57,10 @@ class _MpesaSettingsCardState extends ConsumerState<MpesaSettingsCard> {
       );
     } on ApiException catch (e) {
       if (mounted) {
+        final detail = e.errors?.values.firstOrNull;
+        final extra = detail is List && detail.isNotEmpty ? ': ${detail.first}' : '';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
+          SnackBar(content: Text('${e.message}$extra')),
         );
       }
     } catch (e) {

@@ -1,19 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../database/app_database.dart';
-import '../providers/sales_provider.dart';
+import '../models/api_expense.dart';
+import '../models/api_sale.dart';
+import '../providers/api_data_provider.dart';
+import '../providers/business_api_provider.dart';
 import '../providers/expenses_provider.dart';
 import '../providers/reports_provider.dart';
+import '../providers/sales_provider.dart';
 
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final dailyProfit = ref.watch(dailyProfitProvider(DateTime.now()));
-    final weeklyProfit = ref.watch(weeklyProfitProvider(DateTime.now()));
-    final salesAsync = ref.watch(allSalesProvider);
-    final expensesAsync = ref.watch(allExpensesProvider);
+    final useCloud = ref.watch(useCloudDataProvider);
+    final now = DateTime.now();
+    final dailyProfit = ref.watch(dailyProfitProvider(now));
+    final weeklyProfit = ref.watch(weeklyProfitProvider(now));
+    final salesAsync = useCloud
+        ? ref.watch(apiSalesProvider)
+        : ref.watch(allSalesProvider);
+    final expensesAsync = useCloud
+        ? ref.watch(apiExpensesProvider)
+        : ref.watch(allExpensesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -22,10 +33,16 @@ class ReportsScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(dailyProfitProvider(DateTime.now()));
-          ref.invalidate(weeklyProfitProvider(DateTime.now()));
-          ref.invalidate(allSalesProvider);
-          ref.invalidate(allExpensesProvider);
+          ref.invalidate(dailyProfitProvider(now));
+          ref.invalidate(weeklyProfitProvider(now));
+          if (useCloud) {
+            ref.invalidate(apiSalesProvider);
+            ref.invalidate(apiExpensesProvider);
+            ref.invalidate(apiDashboardProvider);
+          } else {
+            ref.invalidate(allSalesProvider);
+            ref.invalidate(allExpensesProvider);
+          }
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -60,7 +77,15 @@ class ReportsScreen extends ConsumerWidget {
                 data: (sales) {
                   return expensesAsync.when(
                     data: (expenses) {
-                      final transactions = _mergeTransactions(sales, expenses);
+                      final transactions = useCloud
+                          ? _mergeCloudTransactions(
+                              sales as List<ApiSale>,
+                              expenses as List<ApiExpense>,
+                            )
+                          : _mergeTransactions(
+                              sales as List<Sale>,
+                              expenses as List<Expense>,
+                            );
                       if (transactions.isEmpty) {
                         return Card(
                           child: Padding(
@@ -91,6 +116,39 @@ class ReportsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  List<_Transaction> _mergeCloudTransactions(
+    List<ApiSale> sales,
+    List<ApiExpense> expenses,
+  ) {
+    final list = <_Transaction>[];
+    for (final s in sales) {
+      list.add(
+        _Transaction(
+          date: s.saleDate,
+          type: 'Sale',
+          description: s.itemsSummary.isNotEmpty
+              ? s.itemsSummary
+              : 'Sale #${s.id}',
+          amount: s.totalAmount,
+          isIncome: true,
+        ),
+      );
+    }
+    for (final e in expenses) {
+      list.add(
+        _Transaction(
+          date: e.expenseDate,
+          type: 'Expense',
+          description: e.title,
+          amount: e.amount,
+          isIncome: false,
+        ),
+      );
+    }
+    list.sort((a, b) => b.date.compareTo(a.date));
+    return list;
   }
 
   List<_Transaction> _mergeTransactions(
