@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\MpesaController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SaleController;
+use App\Http\Controllers\Api\ShopOrderController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -113,6 +114,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/customers', [CustomerController::class, 'store']);
         Route::put('/customers/{customer}', [CustomerController::class, 'update']);
         Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+
+        Route::get('/shop-orders', [ShopOrderController::class, 'index']);
+        Route::post('/shop-orders', [ShopOrderController::class, 'store']);
+        Route::post('/shop-orders/{id}/fulfill', [ShopOrderController::class, 'fulfill']);
 
         Route::get('/mpesa/config', [MpesaController::class, 'config']);
         Route::put('/mpesa/config', [MpesaController::class, 'updateConfig']);

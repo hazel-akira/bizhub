@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/customers_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/business_api_provider.dart';
 import '../providers/payments_provider.dart';
 import '../providers/sales_provider.dart';
 import '../providers/unpaid_customers_provider.dart';
@@ -141,11 +142,14 @@ class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
 
   void _refreshUI() {
     refreshUnpaidProviders(ref);
-    ref.invalidate(salesListItemsProvider);
-    ref.invalidate(allSalesProvider);
-    ref.invalidate(allPaymentsProvider);
-    ref.invalidate(todayStatsProvider);
     refreshCustomerRelatedProviders(ref);
+    ref.invalidate(todayStatsProvider);
+
+    if (!ref.read(useCloudDataProvider)) {
+      ref.invalidate(salesListItemsProvider);
+      ref.invalidate(allSalesProvider);
+      ref.invalidate(allPaymentsProvider);
+    }
   }
 
   @override

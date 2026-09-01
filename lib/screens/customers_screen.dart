@@ -194,8 +194,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                           customerId: customerId,
                                         );
 
-                                        ref.invalidate(allSalesProvider);
-                                        ref.invalidate(salesListItemsProvider);
+                                        if (!ref.read(useCloudDataProvider)) {
+                                          ref.invalidate(allSalesProvider);
+                                          ref.invalidate(salesListItemsProvider);
+                                        }
                                         refreshCustomerRelatedProviders(ref);
                                         ref.invalidate(
                                           unpaidSalesWithOutstandingProvider,

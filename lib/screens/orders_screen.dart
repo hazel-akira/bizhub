@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
-import '../database/app_database.dart';
+import '../models/pending_order_view.dart';
+import '../providers/api_data_provider.dart';
+import '../providers/business_api_provider.dart';
 import '../providers/customers_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/orders_provider.dart';
-import '../providers/sales_provider.dart';
 import '../providers/business_profile_provider.dart';
 import '../widgets/food_only_screen.dart';
 
@@ -68,6 +69,13 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
         setState(() {});
       }
       return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not create order: $e')),
+        );
+      }
+      return false;
     } finally {
       if (mounted) {
         setState(() => _isCreatingOrder = false);
@@ -149,7 +157,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     );
   }
 
-  Future<void> _onBought(Order order, String customerName) async {
+  Future<void> _onBought(PendingOrderView order) async {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -158,7 +166,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(customerName),
+            Text(order.customerName),
             Text(
               '${order.ndenguCount} ndengu, ${order.meatCount} meat',
               style: Theme.of(context).textTheme.titleMedium,
@@ -185,17 +193,25 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     );
 
     if (proceed == true) {
-      final fulfillOrder = ref.read(fulfillOrderProvider);
-      await fulfillOrder(order.id);
-      ref.invalidate(pendingOrdersProvider);
-      ref.invalidate(pendingOrdersWithNamesProvider);
-      ref.invalidate(todaySalesProvider);
-      ref.invalidate(allSalesProvider);
-      ref.invalidate(todayStatsProvider);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order converted to sale')),
-        );
+      try {
+        final fulfillOrder = ref.read(fulfillOrderProvider);
+        await fulfillOrder(order.id);
+        ref.invalidate(pendingOrdersProvider);
+        ref.invalidate(pendingOrdersWithNamesProvider);
+        ref.invalidate(apiSalesProvider);
+        ref.invalidate(apiDashboardProvider);
+        ref.invalidate(todayStatsProvider);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Order converted to sale')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not fulfill order: $e')),
+          );
+        }
       }
     }
   }
@@ -207,12 +223,20 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       return const FoodOnlyScreen(title: 'Orders', child: SizedBox.shrink());
     }
 
+    final useCloud = ref.watch(useCloudDataProvider);
     final ordersAsync = ref.watch(pendingOrdersWithNamesProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Orders'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        actions: [
+          if (useCloud)
+            const Padding(
+              padding: EdgeInsets.only(right: 12),
+              child: Icon(Icons.cloud_done, color: Colors.green),
+            ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showCreateOrderSheet,
@@ -231,8 +255,8 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             ),
             const SizedBox(height: 8),
             ordersAsync.when(
-              data: (ordersWithNames) {
-                if (ordersWithNames.isEmpty) {
+              data: (orders) {
+                if (orders.isEmpty) {
                   return Card(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
@@ -244,22 +268,22 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                   );
                 }
                 return Column(
-                  children: ordersWithNames
+                  children: orders
                       .map(
-                        (record) => Card(
+                        (order) => Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
                             title: Text(
-                              record.$2,
+                              order.customerName,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                             subtitle: Text(
-                              '${record.$1.ndenguCount} ndengu, ${record.$1.meatCount} meat • KES ${((record.$1.ndenguCount * SamosaPrices.ndenguPrice) + (record.$1.meatCount * SamosaPrices.meatPrice)).toStringAsFixed(0)}',
+                              '${order.ndenguCount} ndengu, ${order.meatCount} meat • KES ${((order.ndenguCount * SamosaPrices.ndenguPrice) + (order.meatCount * SamosaPrices.meatPrice)).toStringAsFixed(0)}',
                             ),
                             trailing: FilledButton.icon(
-                              onPressed: () => _onBought(record.$1, record.$2),
+                              onPressed: () => _onBought(order),
                               icon: const Icon(Icons.check_circle, size: 20),
                               label: const Text('Mark as Served'),
                             ),

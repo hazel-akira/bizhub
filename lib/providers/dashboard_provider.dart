@@ -22,17 +22,15 @@ final todayStatsProvider = FutureProvider<
   final api = ref.watch(businessApiProvider);
   if (api != null) {
     final dash = await ref.watch(apiDashboardProvider.future);
-    if (dash != null) {
-      return (
-        totalSales: dash.todaySales,
-        totalPayments: dash.todaySales,
-        pendingPayments: dash.pendingCredit,
-        totalExpenses: dash.todayExpenses,
-        profit: dash.todayProfit,
-        productsCount: dash.productsCount,
-        lowStockCount: dash.lowStockCount,
-      );
-    }
+    return (
+      totalSales: dash?.todaySales ?? 0,
+      totalPayments: dash?.todaySales ?? 0,
+      pendingPayments: dash?.pendingCredit ?? 0,
+      totalExpenses: dash?.todayExpenses ?? 0,
+      profit: dash?.todayProfit ?? 0,
+      productsCount: dash?.productsCount ?? 0,
+      lowStockCount: dash?.lowStockCount ?? 0,
+    );
   }
 
   final sales = await ref.watch(allSalesProvider.future);
@@ -86,12 +84,10 @@ final smartInsightsProvider =
 
   if (api != null) {
     final dash = await ref.watch(apiDashboardProvider.future);
-    if (dash != null) {
-      return (
-        mostSoldItem: dash.topProductToday ?? 'No sales yet today',
-        bestSalesDay: dash.salesCount > 0 ? 'Today' : 'N/A',
-      );
-    }
+    return (
+      mostSoldItem: dash?.topProductToday ?? 'No sales yet today',
+      bestSalesDay: (dash?.salesCount ?? 0) > 0 ? 'Today' : 'N/A',
+    );
   }
 
   if (!config.isFoodBusiness) {
@@ -142,18 +138,16 @@ final todayPerformanceProvider = FutureProvider<
   final api = ref.watch(businessApiProvider);
   if (api != null) {
     final dash = await ref.watch(apiDashboardProvider.future);
-    if (dash != null) {
-      return (
-        hasSales: dash.todaySales > 0,
-        totalUnitsSold: dash.todayUnitsSold,
-        totalRevenue: dash.todaySales,
-        totalCosts: dash.todayExpenses,
-        netProfit: dash.todayProfit,
-        hasProfitRecord: false,
-        productsCount: dash.productsCount,
-        topProductToday: dash.topProductToday,
-      );
-    }
+    return (
+      hasSales: (dash?.todaySales ?? 0) > 0,
+      totalUnitsSold: dash?.todayUnitsSold ?? 0,
+      totalRevenue: dash?.todaySales ?? 0,
+      totalCosts: dash?.todayExpenses ?? 0,
+      netProfit: dash?.todayProfit ?? 0,
+      hasProfitRecord: false,
+      productsCount: dash?.productsCount ?? 0,
+      topProductToday: dash?.topProductToday,
+    );
   }
 
   final config = ref.watch(businessTypeConfigProvider);

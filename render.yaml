@@ -21,7 +21,7 @@ services:
       - key: APP_KEY
         sync: false
       - key: APP_URL
-        value: https://bizhub-xy3w.onrender.com
+        value: https://akira-flow-api.onrender.com
       - key: LOG_CHANNEL
         value: stderr
       - key: LOG_LEVEL
@@ -63,7 +63,7 @@ services:
       - key: MPESA_BASE_URL
         value: https://sandbox.safaricom.co.ke
       - key: MPESA_CALLBACK_URL
-        value: https://bizhub-xy3w.onrender.com/api/mpesa/callback
+        value: https://akira-flow-api.onrender.com/api/mpesa/callback
       - key: GOOGLE_CLIENT_IDS
         sync: false
       - key: TRUSTED_PROXIES

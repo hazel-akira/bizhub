@@ -6,6 +6,7 @@ import '../models/api_product.dart';
 import '../models/api_sale.dart';
 import '../models/global_category.dart';
 import '../models/global_product.dart';
+import '../models/pending_order_view.dart';
 import 'api_client.dart';
 
 class BusinessApiService {
@@ -121,6 +122,35 @@ class BusinessApiService {
 
   Future<void> deleteCustomer(int id) async {
     await _api.delete('/api/customers/$id', auth: true);
+  }
+
+  Future<List<PendingOrderView>> getShopOrders() async {
+    final json = await _api.get('/api/shop-orders', auth: true);
+    final list = json['data'] as List<dynamic>? ?? [];
+    return list
+        .map((e) => PendingOrderView.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<PendingOrderView> createShopOrder({
+    required int customerId,
+    required int ndenguCount,
+    required int meatCount,
+  }) async {
+    final json = await _api.post(
+      '/api/shop-orders',
+      auth: true,
+      body: {
+        'customer_id': customerId,
+        'ndengu_count': ndenguCount,
+        'meat_count': meatCount,
+      },
+    );
+    return PendingOrderView.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<void> fulfillShopOrder(int orderId) async {
+    await _api.post('/api/shop-orders/$orderId/fulfill', auth: true);
   }
 
   Customer _customerFromApi(Map<String, dynamic> json) {

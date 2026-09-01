@@ -153,6 +153,15 @@ class _MpesaSettingsCardState extends ConsumerState<MpesaSettingsCard> {
                           setState(() => _accountType = value);
                         },
                 ),
+                if (_shortcode.text.trim() == '174379') ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sandbox shortcode 174379 requires Paybill (saved automatically).',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.orange.shade800,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: _shortcode,
@@ -162,6 +171,11 @@ class _MpesaSettingsCardState extends ConsumerState<MpesaSettingsCard> {
                     labelText: 'Shortcode (Till or Paybill)',
                     border: OutlineInputBorder(),
                   ),
+                  onChanged: (value) {
+                    if (value.trim() == '174379' && _accountType != 'paybill') {
+                      setState(() => _accountType = 'paybill');
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextField(

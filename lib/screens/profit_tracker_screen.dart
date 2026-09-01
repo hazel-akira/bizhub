@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/profit_tracker_provider.dart';
 import '../providers/business_profile_provider.dart';
+import '../providers/business_api_provider.dart';
 import '../widgets/food_only_screen.dart';
 
 class ProfitTrackerScreen extends ConsumerStatefulWidget {
@@ -115,7 +116,8 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
     final isProfit = profit >= 0;
     final profitColor = isProfit ? Colors.green : Colors.red;
 
-    final recordsAsync = ref.watch(profitRecordsProvider);
+    final useCloud = ref.watch(useCloudDataProvider);
+    final recordsAsync = useCloud ? null : ref.watch(profitRecordsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -322,10 +324,17 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
                             ),
                       ),
                       const SizedBox(height: 14),
-                      FilledButton.icon(
-                        onPressed: _isSaving
-                            ? null
-                            : () async {
+                      if (useCloud)
+                        Text(
+                          'Signed in — profit is tracked on the Dashboard from sales and expenses. '
+                          'Saving detailed cost breakdowns here is offline-only.',
+                          style: TextStyle(color: Colors.grey[700]),
+                        )
+                      else
+                        FilledButton.icon(
+                          onPressed: _isSaving
+                              ? null
+                              : () async {
                                 final qtyOk = qty > 0;
                                 if (!qtyOk) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -381,6 +390,7 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
                   ),
                 ),
               ),
+              if (!useCloud) ...[
               const SizedBox(height: 16),
               Text(
                 'Previous Profit Records',
@@ -389,7 +399,7 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
                     ),
               ),
               const SizedBox(height: 8),
-              recordsAsync.when(
+              recordsAsync!.when(
                 data: (records) {
                   if (records.isEmpty) {
                     return Card(
@@ -460,6 +470,7 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Text('Error: $e'),
               ),
+              ],
             ],
           ),
         ),

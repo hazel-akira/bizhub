@@ -23,16 +23,19 @@ class SalesScreen extends ConsumerStatefulWidget {
 
 class _SalesScreenState extends ConsumerState<SalesScreen> {
   void _refreshSalesUI() {
-    ref.invalidate(todaySalesListItemsProvider);
-    ref.invalidate(allSalesProvider);
-    ref.invalidate(allPaymentsProvider);
     ref.invalidate(todayStatsProvider);
-    ref.invalidate(todaySalesProvider);
     ref.invalidate(unpaidCustomersDebtProvider);
     ref.invalidate(apiSalesProvider);
     ref.invalidate(apiTodaySalesProvider);
     ref.invalidate(apiDashboardProvider);
     ref.invalidate(apiProductsProvider);
+
+    if (!ref.read(useCloudDataProvider)) {
+      ref.invalidate(todaySalesListItemsProvider);
+      ref.invalidate(allSalesProvider);
+      ref.invalidate(allPaymentsProvider);
+      ref.invalidate(todaySalesProvider);
+    }
   }
 
   void _openInventory() {

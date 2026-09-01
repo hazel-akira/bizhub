@@ -63,7 +63,13 @@ class MpesaCheckoutFlow {
         reference: reference,
       );
     } on ApiException catch (e) {
-      if (context.mounted) _snack(context, e.message);
+      if (context.mounted) {
+        final mpesaErr = e.errors?['mpesa'];
+        final extra = mpesaErr is List && mpesaErr.isNotEmpty
+            ? mpesaErr.first.toString()
+            : e.message;
+        _snack(context, extra);
+      }
       return null;
     } catch (e) {
       if (context.mounted) {

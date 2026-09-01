@@ -123,6 +123,11 @@ class MpesaService
         if (array_key_exists('account_type', $data) && filled($data['account_type'])) {
             $config->account_type = MpesaAccountType::from($data['account_type']);
         }
+
+        // Daraja sandbox STK only works with Paybill shortcode 174379.
+        if (trim((string) $config->shortcode) === '174379') {
+            $config->account_type = MpesaAccountType::Paybill;
+        }
         foreach (['consumer_key', 'consumer_secret', 'passkey'] as $secret) {
             if (array_key_exists($secret, $data) && filled($data[$secret])) {
                 $config->{$secret} = $data[$secret];
@@ -277,7 +282,7 @@ class MpesaService
         $timestamp = now('Africa/Nairobi')->format('YmdHis');
         $password = base64_encode($config->shortcode.$config->passkey.$timestamp);
         $phone = $this->normalizePhone($transaction->phone);
-        $accountType = $config->account_type ?? MpesaAccountType::Paybill;
+        $stk = $this->resolveStkPushParameters($config);
 
         $response = Http::timeout(30)
             ->withToken($token)
@@ -287,10 +292,10 @@ class MpesaService
                 'BusinessShortCode' => $config->shortcode,
                 'Password' => $password,
                 'Timestamp' => $timestamp,
-                'TransactionType' => $accountType->transactionType(),
+                'TransactionType' => $stk['transaction_type'],
                 'Amount' => $transaction->amount,
                 'PartyA' => $phone,
-                'PartyB' => $config->shortcode,
+                'PartyB' => $stk['party_b'],
                 'PhoneNumber' => $phone,
                 'CallBackURL' => config('services.mpesa.callback_url'),
                 'AccountReference' => Str::limit($transaction->reference ?? 'AkiraFlow', 12, ''),
@@ -303,7 +308,7 @@ class MpesaService
         }
 
         if ($response->failed()) {
-            $message = $this->darajaErrorMessage($payload, $response->status());
+            $message = $this->darajaErrorMessage($payload, $response->status(), $config);
 
             $transaction->update([
                 'status' => MpesaTransactionStatus::Failed,
@@ -367,14 +372,52 @@ class MpesaService
         );
     }
 
-    private function darajaErrorMessage(mixed $payload, int $status): string
+    /**
+     * @return array{transaction_type: string, party_b: string}
+     */
+    private function resolveStkPushParameters(MpesaConfig $config): array
     {
+        $shortcode = trim((string) $config->shortcode);
+        $accountType = $config->account_type ?? MpesaAccountType::Paybill;
+
+        if ($shortcode === '174379') {
+            return [
+                'transaction_type' => MpesaAccountType::Paybill->transactionType(),
+                'party_b' => $shortcode,
+            ];
+        }
+
+        return [
+            'transaction_type' => $accountType->transactionType(),
+            'party_b' => $shortcode,
+        ];
+    }
+
+    private function darajaErrorMessage(mixed $payload, int $status, ?MpesaConfig $config = null): string
+    {
+        $message = null;
+
         if (is_array($payload)) {
             foreach (['errorMessage', 'ResponseDescription', 'CustomerMessage', 'error_description'] as $key) {
                 if (isset($payload[$key]) && is_string($payload[$key]) && $payload[$key] !== '') {
-                    return $payload[$key];
+                    $message = $payload[$key];
+                    break;
                 }
             }
+        }
+
+        if ($message !== null && stripos($message, 'invalid transaction type') !== false) {
+            $typeLabel = $config?->account_type?->label() ?? 'unknown';
+            $shortcode = $config?->shortcode ?? '?';
+
+            return 'Invalid M-Pesa transaction type for '.$typeLabel.' shortcode '.$shortcode.'. '
+                .'Sandbox: Paybill + 174379 + Lipa Na M-Pesa Online passkey. '
+                .'Till: account type Till + your till number (Buy Goods). '
+                .'Paybill: account type Paybill + your paybill number.';
+        }
+
+        if ($message !== null) {
+            return $message;
         }
 
         return 'Safaricom rejected the STK Push (HTTP '.$status.'). Use sandbox Paybill 174379 and the Lipa Na M-Pesa Online passkey.';

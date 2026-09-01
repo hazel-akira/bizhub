@@ -158,4 +158,31 @@ class MpesaPaymentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.configured', true);
     }
+
+    public function test_sandbox_paybill_shortcode_forces_paybill_account_type_on_save(): void
+    {
+        $business = Business::create([
+            'name' => 'Test Shop',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '174379',
+            'consumer_key' => 'test-consumer-key',
+            'consumer_secret' => 'test-consumer-secret',
+            'passkey' => 'test-passkey',
+            'account_type' => 'till',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.account_type', 'paybill');
+    }
 }

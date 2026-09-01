@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/production_provider.dart';
 import '../providers/business_profile_provider.dart';
 import '../widgets/food_only_screen.dart';
+import '../widgets/offline_only_guard.dart';
 
 class ProductionScreen extends ConsumerStatefulWidget {
   const ProductionScreen({super.key});
@@ -74,7 +75,11 @@ class _ProductionScreenState extends ConsumerState<ProductionScreen> {
     final summaryAsync = ref.watch(productionSummaryProvider);
     final dateLabel =
         '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}';
-    return Scaffold(
+    return OfflineOnlyGuard(
+      title: 'Production',
+      featureName: 'Production tracking',
+      alternativeHint: 'Use Sales and Orders to track what you sell when signed in.',
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Production'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
@@ -184,6 +189,7 @@ class _ProductionScreenState extends ConsumerState<ProductionScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

@@ -78,7 +78,13 @@ class AuthController extends Controller
         BusinessSetupService $setup,
     ): JsonResponse {
         $validated = $request->validated();
-        $payload = $verifier->verify($validated['id_token']);
+        try {
+            $payload = $verifier->verify($validated['id_token']);
+        } catch (\RuntimeException $e) {
+            throw ValidationException::withMessages([
+                'id_token' => [$e->getMessage()],
+            ]);
+        }
 
         $googleId = (string) $payload['sub'];
         $email = strtolower((string) $payload['email']);
