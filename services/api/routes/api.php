@@ -43,6 +43,8 @@ Route::get('/health', function () {
         'database_driver' => $driver,
         'database' => $database,
         'database_ok' => $dbOk,
+        'global_categories' => $dbOk ? \App\Models\GlobalCategory::count() : null,
+        'global_products' => $dbOk ? \App\Models\GlobalProduct::count() : null,
     ], $dbOk ? 200 : 503);
 });
 

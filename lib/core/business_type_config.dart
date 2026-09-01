@@ -18,6 +18,7 @@ class BusinessTypeConfig {
     required this.showProductionDrawer,
     required this.productNoun,
     required this.emptyCatalogHint,
+    required this.globalCatalogSubtitle,
     required this.productIcon,
   });
 
@@ -36,6 +37,7 @@ class BusinessTypeConfig {
   final bool showProductionDrawer;
   final String productNoun;
   final String emptyCatalogHint;
+  final String globalCatalogSubtitle;
   final IconData productIcon;
 
   static const fallback = BusinessTypeConfig(
@@ -54,6 +56,7 @@ class BusinessTypeConfig {
     showProductionDrawer: true,
     productNoun: 'samosa',
     emptyCatalogHint: 'Add products to start selling.',
+    globalCatalogSubtitle: 'Samosa, Mandazi, Chapati, and more',
     productIcon: Icons.restaurant,
   );
 
@@ -79,6 +82,7 @@ class BusinessTypeConfig {
       showProductionDrawer: true,
       productNoun: 'samosa',
       emptyCatalogHint: 'Prepare samosas in Production first.',
+      globalCatalogSubtitle: 'Samosa, Mandazi, Chapati, and more',
       productIcon: Icons.restaurant,
     ),
     'small_restaurant': BusinessTypeConfig(
@@ -97,6 +101,7 @@ class BusinessTypeConfig {
       showProductionDrawer: true,
       productNoun: 'menu item',
       emptyCatalogHint: 'Add menu items in Production.',
+      globalCatalogSubtitle: 'Ugali, Rice, Chicken, Soda, and more',
       productIcon: Icons.restaurant_menu,
     ),
     'pharmacy': BusinessTypeConfig(
@@ -115,6 +120,7 @@ class BusinessTypeConfig {
       showProductionDrawer: false,
       productNoun: 'medicine',
       emptyCatalogHint: 'Add medicines in Inventory — e.g. Paracetamol, Amoxicillin.',
+      globalCatalogSubtitle: 'Paracetamol, Amoxicillin, Cough syrup, and more',
       productIcon: Icons.medication_outlined,
     ),
     'grocery_shop': BusinessTypeConfig(
@@ -133,6 +139,7 @@ class BusinessTypeConfig {
       showProductionDrawer: false,
       productNoun: 'product',
       emptyCatalogHint: 'Add groceries in Inventory — e.g. Rice, Sugar, Flour.',
+      globalCatalogSubtitle: 'Coca Cola, Rice, Sugar, and more',
       productIcon: Icons.shopping_basket_outlined,
     ),
     'boutique': BusinessTypeConfig(
@@ -151,6 +158,7 @@ class BusinessTypeConfig {
       showProductionDrawer: false,
       productNoun: 'item',
       emptyCatalogHint: 'Add clothing and accessories in Inventory.',
+      globalCatalogSubtitle: 'Dresses, T-shirts, Shoes, and more',
       productIcon: Icons.checkroom_outlined,
     ),
     'hardware_store': BusinessTypeConfig(
@@ -169,6 +177,7 @@ class BusinessTypeConfig {
       showProductionDrawer: false,
       productNoun: 'item',
       emptyCatalogHint: 'Add tools and materials in Inventory.',
+      globalCatalogSubtitle: 'Nails, Hammer, Paint, and more',
       productIcon: Icons.hardware_outlined,
     ),
     'electronics_shop': BusinessTypeConfig(
@@ -187,6 +196,7 @@ class BusinessTypeConfig {
       showProductionDrawer: false,
       productNoun: 'device',
       emptyCatalogHint: 'Add phones, accessories, and electronics in Inventory.',
+      globalCatalogSubtitle: 'Phone charger, Earphones, USB cable, and more',
       productIcon: Icons.devices_outlined,
     ),
     'cybercafe': BusinessTypeConfig(
@@ -205,6 +215,7 @@ class BusinessTypeConfig {
       showProductionDrawer: false,
       productNoun: 'service',
       emptyCatalogHint: 'Add printing, internet, and computer services in Inventory.',
+      globalCatalogSubtitle: 'Printing, Photocopy, Internet time, and more',
       productIcon: Icons.computer_outlined,
     ),
     'beauty_shop': BusinessTypeConfig(
@@ -223,6 +234,7 @@ class BusinessTypeConfig {
       showProductionDrawer: false,
       productNoun: 'product',
       emptyCatalogHint: 'Add skincare, makeup, and beauty items from the catalog.',
+      globalCatalogSubtitle: 'Hair gel, Hair shampoo, Perfume, and more',
       productIcon: Icons.spa_outlined,
     ),
   };

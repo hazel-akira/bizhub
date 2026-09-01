@@ -54,11 +54,12 @@ class GlobalProductController extends Controller
         $query = GlobalProduct::query()->with('category');
         $catalog->scopeProductsForUser($query, $user);
 
+        $pattern = '%'.mb_strtolower($q).'%';
         $products = $query
-            ->where(function ($query) use ($q) {
-                $query->where('name', 'ilike', "%{$q}%")
-                    ->orWhere('barcode', 'ilike', "%{$q}%")
-                    ->orWhere('description', 'ilike', "%{$q}%");
+            ->where(function ($query) use ($pattern) {
+                $query->whereRaw('LOWER(name) LIKE ?', [$pattern])
+                    ->orWhereRaw('LOWER(COALESCE(barcode, \'\')) LIKE ?', [$pattern])
+                    ->orWhereRaw('LOWER(COALESCE(description, \'\')) LIKE ?', [$pattern]);
             })
             ->orderBy('name')
             ->limit(50)

@@ -145,6 +145,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   Future<void> _showAddOptions(BuildContext context) async {
     final palette = ref.read(businessThemePaletteProvider);
+    final catalogSubtitle = ref.read(businessTypeConfigProvider).globalCatalogSubtitle;
     await showCenteredDialog<void>(
       context,
       palette: palette,
@@ -158,7 +159,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             ThemedOptionTile(
               icon: Icons.public,
               title: 'From global catalog',
-              subtitle: 'Coca Cola, Rice, Sugar, and more',
+              subtitle: catalogSubtitle,
               palette: colors,
               onTap: () {
                 Navigator.pop(ctx);
@@ -369,7 +370,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                   setLocal(() => selectedProduct = value);
                                 },
                         ),
-                        if (visibleProducts.isNotEmpty) ...[
+                        if (allProducts.isEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'No catalog products yet. Pull to refresh after the server finishes syncing, or add a custom product instead.',
+                            style: TextStyle(
+                              color: Colors.orange.shade800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ] else if (visibleProducts.isNotEmpty) ...[
                           const SizedBox(height: 8),
                           Text(
                             '${visibleProducts.length} product(s) available',
@@ -660,6 +670,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final useCloud = ref.watch(useCloudDataProvider);
     final productsAsync = ref.watch(apiProductsProvider);
     final palette = ref.watch(businessThemePaletteProvider);
+    final catalogSubtitle = ref.watch(businessTypeConfigProvider).globalCatalogSubtitle;
 
     return Scaffold(
       appBar: AppBar(
@@ -732,8 +743,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                 style: TextStyle(fontWeight: FontWeight.w700),
                               ),
                               const SizedBox(height: 8),
-                              const Text(
-                                'Search the global catalog for Coca Cola, Rice, Sugar… or create a custom product.',
+                              Text(
+                                'Search the global catalog for $catalogSubtitle or create a custom product.',
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),

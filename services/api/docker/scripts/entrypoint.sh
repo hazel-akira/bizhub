@@ -61,7 +61,12 @@ if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
     php artisan migrate --force --no-interaction
 fi
 
-# Optional seed (global catalog) — disabled by default in production
+# Global catalog (categories + products) — idempotent; safe on every deploy.
+echo "[entrypoint] Syncing global product catalog..."
+php artisan db:seed --class=GlobalCategorySeeder --force --no-interaction
+php artisan db:seed --class=GlobalProductSeeder --force --no-interaction
+
+# Optional full seed (demo users, etc.)
 if [ "${RUN_SEEDER:-false}" = "true" ]; then
     echo "[entrypoint] Running database seeders..."
     php artisan db:seed --force --no-interaction

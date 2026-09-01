@@ -9,8 +9,10 @@ use App\Http\Requests\UpdateMpesaConfigRequest;
 use App\Models\MpesaConfig;
 use App\Models\Order;
 use App\Services\MpesaService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class MpesaController extends Controller
 {
@@ -37,17 +39,48 @@ class MpesaController extends Controller
 
     public function updateConfig(UpdateMpesaConfigRequest $request): JsonResponse
     {
-        $business = $request->user()->business;
+        if (blank(config('app.key'))) {
+            return $this->error(
+                'Server encryption key (APP_KEY) is missing. Set it in Render environment variables.',
+                503,
+            );
+        }
+
+        $user = $request->user()->loadMissing('business');
+        $business = $user->business;
         if (! $business) {
             return $this->error('Complete business setup before saving M-Pesa credentials.', 422);
         }
 
-        $config = $this->mpesa->upsertConfig(
-            $business,
-            $request->validated(),
-        );
+        try {
+            $config = $this->mpesa->upsertConfig(
+                $business,
+                $request->validated(),
+            );
 
-        return $this->success($config->toPublicArray(), 200, 'M-Pesa credentials saved');
+            return $this->success($config->toPublicArray(), 200, 'M-Pesa credentials saved');
+        } catch (QueryException $e) {
+            Log::error('M-Pesa config save failed (database)', [
+                'business_id' => $business->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->error(
+                'M-Pesa storage is not ready on the server. Redeploy the API so migrations can run.',
+                503,
+            );
+        } catch (\Throwable $e) {
+            Log::error('M-Pesa config save failed', [
+                'business_id' => $business->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $message = config('app.debug')
+                ? $e->getMessage()
+                : 'Could not save M-Pesa credentials. Check all fields and try again.';
+
+            return $this->error($message, 500);
+        }
     }
 
     /**
