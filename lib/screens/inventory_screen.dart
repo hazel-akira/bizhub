@@ -23,6 +23,33 @@ class InventoryScreen extends ConsumerStatefulWidget {
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final _imagePicker = ImagePicker();
 
+  String? _requiredSellingPrice(String? v) {
+    final n = double.tryParse((v ?? '').trim());
+    if (n == null || n <= 0) return 'Enter a selling price greater than 0';
+    return null;
+  }
+
+  String? _requiredCostPrice(String? v) {
+    final n = double.tryParse((v ?? '').trim());
+    if (n == null || n < 0) return 'Enter what you paid (0 or more)';
+    return null;
+  }
+
+  String _marginLine(ApiProduct product) {
+    final sell = product.sellingPrice;
+    final cost = product.costPrice;
+    if (sell <= 0) {
+      return 'Set selling and buying prices • Stock: ${product.stockQuantity}';
+    }
+    final profit = sell - cost;
+    return 'Sell KES ${sell.toStringAsFixed(0)}'
+        ' • Buy ${cost.toStringAsFixed(0)}'
+        ' • Profit ${profit.toStringAsFixed(0)}'
+        ' • Stock: ${product.stockQuantity}'
+        '${product.unit != null ? ' • ${product.unit}' : ''}'
+        '${product.isActive ? '' : ' • Inactive'}';
+  }
+
   Future<void> _offerProductImage(
     BuildContext context,
     ApiProduct product,
@@ -448,11 +475,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Your selling price (KES)',
                 ),
-                validator: (v) {
-                  final n = double.tryParse(v ?? '');
-                  if (n == null || n <= 0) return 'Enter a price greater than 0';
-                  return null;
-                },
+                validator: _requiredSellingPrice,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -461,8 +484,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   decimal: true,
                 ),
                 decoration: const InputDecoration(
-                  labelText: 'Cost price (KES, optional)',
+                  labelText: 'Buying price (KES)',
+                  helperText: 'What you paid — profit is selling minus this',
                 ),
+                validator: _requiredCostPrice,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -501,9 +526,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       final product = await ref.read(addProductFromGlobalProvider)(
         globalProductId: global.id,
         sellingPrice: double.parse(priceCtrl.text.trim()),
-        costPrice: costCtrl.text.trim().isEmpty
-            ? null
-            : double.parse(costCtrl.text.trim()),
+        costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
       );
       if (context.mounted) {
@@ -521,6 +544,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Future<void> _showCustomProductDialog(BuildContext context) async {
     final nameCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
+    final costCtrl = TextEditingController();
     final stockCtrl = TextEditingController(text: '0');
     final formKey = GlobalKey<FormState>();
 
@@ -553,11 +577,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Selling price (KES)',
                 ),
-                validator: (v) {
-                  final n = double.tryParse(v ?? '');
-                  if (n == null || n <= 0) return 'Enter a price greater than 0';
-                  return null;
-                },
+                validator: _requiredSellingPrice,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: costCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Buying price (KES)',
+                  helperText: 'What you paid — profit is selling minus this',
+                ),
+                validator: _requiredCostPrice,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -596,6 +628,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       final product = await ref.read(createApiProductProvider)(
         name: nameCtrl.text.trim(),
         sellingPrice: double.parse(priceCtrl.text.trim()),
+        costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
       );
       if (context.mounted) {
@@ -634,7 +667,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       builder: (ctx, colors) => CenteredDialogFrame(
         palette: colors,
         title: 'Edit ${product.name}',
-        subtitle: 'Set the selling price your customers will pay.',
+        subtitle: 'Selling price minus buying price is the profit.',
         body: Form(
           key: formKey,
           child: Column(
@@ -648,11 +681,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Selling price (KES)',
                 ),
-                validator: (v) {
-                  final n = double.tryParse(v ?? '');
-                  if (n == null || n <= 0) return 'Enter a price greater than 0';
-                  return null;
-                },
+                validator: _requiredSellingPrice,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -661,15 +690,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   decimal: true,
                 ),
                 decoration: const InputDecoration(
-                  labelText: 'Cost price (KES)',
-                  helperText: 'What you pay — used for profit (Revenue − COGS)',
+                  labelText: 'Buying price (KES)',
+                  helperText: 'What you paid — profit is selling minus this',
                 ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return null;
-                  final n = double.tryParse(v);
-                  if (n == null || n < 0) return 'Enter a valid cost';
-                  return null;
-                },
+                validator: _requiredCostPrice,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -708,9 +732,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       await ref.read(updateApiProductProvider)(
         productId: product.id,
         sellingPrice: double.parse(priceCtrl.text.trim()),
-        costPrice: costCtrl.text.trim().isEmpty
-            ? null
-            : double.parse(costCtrl.text.trim()),
+        costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
       );
       if (context.mounted) {
@@ -926,13 +948,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             ),
                             subtitle: Text(
                               [
-                                if (product.sellingPrice <= 0)
-                                  'Set selling price • Stock: ${product.stockQuantity}'
-                                else
-                                  'KES ${product.sellingPrice.toStringAsFixed(0)}'
-                                      ' • Stock: ${product.stockQuantity}'
-                                      '${product.unit != null ? ' • ${product.unit}' : ''}'
-                                      '${product.isActive ? '' : ' • Inactive'}',
+                                _marginLine(product),
                                 if (product.createdAt != null)
                                   'Added ${AppLayout.stamp(product.createdAt!)}',
                               ].join('\n'),

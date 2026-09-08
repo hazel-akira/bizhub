@@ -644,7 +644,7 @@ class _CloudProfitScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Set each product’s cost price in Inventory so COGS and margins stay accurate.',
+                  'Profit on each sale is selling price minus buying price. Set both in Inventory.',
                   style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                 ),
               ],
