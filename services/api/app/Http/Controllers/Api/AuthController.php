@@ -12,6 +12,7 @@ use App\Models\Business;
 use App\Models\User;
 use App\Services\BusinessSetupService;
 use App\Services\GoogleTokenVerifier;
+use App\Support\StaffAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +45,7 @@ class AuthController extends Controller
                 'email' => $validated['email'],
                 'password' => $validated['password'],
                 'role' => 'owner',
+                'roles' => ['owner'],
                 'is_active' => true,
             ]);
         });
@@ -154,6 +156,7 @@ class AuthController extends Controller
                 'google_id' => $googleId,
                 'password' => Hash::make(Str::password(32)),
                 'role' => 'owner',
+                'roles' => ['owner'],
                 'is_active' => true,
             ]);
         });
@@ -194,11 +197,15 @@ class AuthController extends Controller
     {
         $type = BusinessType::tryFromString($user->business?->business_type);
 
+        $roles = $user->staffRoles();
+
         return [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
-            'role' => $user->role,
+            'role' => StaffAccess::primaryRole($roles),
+            'roles' => $roles,
+            'permissions' => StaffAccess::permissionsFor($roles),
             'business_id' => $user->business_id,
             'business_name' => $user->business?->name,
             'business_type' => $type?->value ?? $user->business?->business_type,

@@ -55,7 +55,7 @@ class BusinessSetupService
                 'business_id' => $business->id,
                 'category_id' => $categoryIds[$product['category']] ?? null,
                 'name' => $product['name'],
-                'cost_price' => $product['selling_price'] * 0.5,
+                'cost_price' => 0,
                 'selling_price' => $product['selling_price'],
                 'stock_quantity' => 0,
                 'is_active' => true,

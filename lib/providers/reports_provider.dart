@@ -9,7 +9,7 @@ final dailyProfitProvider =
   final api = ref.watch(businessApiProvider);
   if (api != null) {
     final dash = await ref.watch(apiDashboardProvider.future);
-    return dash?.todayProfit ?? 0;
+    return dash?.todayGrossProfit ?? dash?.todayProfit ?? 0;
   }
 
   final db = ref.watch(databaseProvider);
@@ -25,28 +25,21 @@ final weeklyProfitProvider =
   final api = ref.watch(businessApiProvider);
   if (api != null) {
     final sales = await ref.watch(apiSalesProvider.future);
-    final expenses = await ref.watch(apiExpensesProvider.future);
     final weekStart = DateTime(date.year, date.month, date.day)
         .subtract(Duration(days: date.weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 7));
 
-    var totalSales = 0.0;
+    var goodsProfit = 0.0;
     for (final sale in sales) {
       final d = sale.saleDate;
       if (!d.isBefore(weekStart) && d.isBefore(weekEnd)) {
-        totalSales += sale.totalAmount;
+        for (final item in sale.items) {
+          goodsProfit += item.lineProfit;
+        }
       }
     }
 
-    var totalExpenses = 0.0;
-    for (final expense in expenses) {
-      final d = expense.expenseDate;
-      if (!d.isBefore(weekStart) && d.isBefore(weekEnd)) {
-        totalExpenses += expense.amount;
-      }
-    }
-
-    return totalSales - totalExpenses;
+    return goodsProfit;
   }
 
   final db = ref.watch(databaseProvider);

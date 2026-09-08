@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/phone_utils.dart';
 import '../core/whatsapp_helper.dart';
 import '../database/app_database.dart';
+import '../providers/api_data_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/business_api_provider.dart';
 import '../providers/customers_provider.dart';
@@ -30,6 +32,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     final amountCtrl = TextEditingController();
     final scrollController = ScrollController();
     int? selectedCustomerId;
+    int? selectedProductId;
     bool isSaving = false;
 
     try {
@@ -39,6 +42,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
         showDragHandle: true,
         builder: (ctx) {
           final customersAsync = ref.watch(customersProvider);
+          final products = (ref.watch(apiProductsProvider).valueOrNull ?? [])
+              .where((p) => p.isActive && p.sellingPrice > 0)
+              .toList();
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -106,13 +112,59 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                     ),
                                   )
                                   .toList(),
-                              onChanged: (v) =>
-                                  setLocal(() => selectedCustomerId = v),
+                            onChanged: (v) =>
+                                setLocal(() => selectedCustomerId = v),
                             ),
+                            if (products.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<int>(
+                                key: ValueKey(selectedProductId),
+                                initialValue: selectedProductId,
+                                decoration: const InputDecoration(
+                                  labelText: 'Product',
+                                ),
+                                hint: const Text('Select product'),
+                                items: products
+                                    .map(
+                                      (p) => DropdownMenuItem<int>(
+                                        value: p.id,
+                                        child: Text(
+                                          '${p.name} • KES ${p.sellingPrice.toStringAsFixed(0)}',
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) {
+                                  setLocal(() {
+                                    selectedProductId = v;
+                                    final qty = int.tryParse(qtyCtrl.text.trim()) ?? 0;
+                                    final product = products
+                                        .where((p) => p.id == v)
+                                        .firstOrNull;
+                                    if (product != null && qty > 0) {
+                                      amountCtrl.text =
+                                          (product.sellingPrice * qty)
+                                              .toStringAsFixed(0);
+                                    }
+                                  });
+                                },
+                              ),
+                            ],
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: qtyCtrl,
                               onTap: scrollToTop,
+                              onChanged: (value) {
+                                final qty = int.tryParse(value.trim()) ?? 0;
+                                final product = products
+                                    .where((p) => p.id == selectedProductId)
+                                    .firstOrNull;
+                                if (product != null && qty > 0) {
+                                  amountCtrl.text =
+                                      (product.sellingPrice * qty)
+                                          .toStringAsFixed(0);
+                                }
+                              },
                               keyboardType:
                                   const TextInputType.numberWithOptions(
                                     signed: false,
@@ -192,6 +244,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                                           quantity: qty,
                                           totalAmount: total,
                                           customerId: customerId,
+                                          productId: selectedProductId,
                                         );
 
                                         if (!ref.read(useCloudDataProvider)) {
@@ -429,10 +482,13 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
               if (c.phone.isNotEmpty)
                 OutlinedButton.icon(
                   onPressed: () async {
+                    final businessName =
+                        ref.read(authProvider).user?.businessName ??
+                            'Akira Flow';
                     final ok = await openWhatsAppChat(
                       c.phone,
                       message:
-                          'Hi ${c.name}! I\'d like to place a samosa order.',
+                          "Hi ${c.name}! It's $businessName. I'd like you to pay your balance.",
                     );
                     if (!ctx.mounted) return;
                     if (!ok) {
@@ -636,8 +692,11 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             'Add customer',
@@ -646,7 +705,11 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                           OutlinedButton.icon(
                             onPressed: _pickFromContacts,
                             icon: const Icon(Icons.contacts, size: 20),
-                            label: const Text('From contacts'),
+                            label: const Text(
+                              'From contacts',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),

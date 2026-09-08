@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/layout.dart';
 import '../providers/customers_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/business_api_provider.dart';
@@ -236,20 +237,23 @@ class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
                               ),
                             ],
                             const SizedBox(height: 12),
-                            Row(
+                            AdaptiveButtonRow(
                               children: [
-                                Expanded(
-                                  child: FilledButton(
-                                    onPressed: () => _markAsPaid(row),
-                                    child: const Text('Mark as Paid'),
+                                FilledButton(
+                                  onPressed: () => _markAsPaid(row),
+                                  child: const Text(
+                                    'Mark paid',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () =>
-                                        _recordPartialPayment(row),
-                                    child: const Text('Partial Payment'),
+                                OutlinedButton(
+                                  onPressed: () =>
+                                      _recordPartialPayment(row),
+                                  child: const Text(
+                                    'Partial',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],

@@ -8,6 +8,8 @@ import '../providers/database_provider.dart';
 import '../services/sales_reminder_service.dart';
 import '../widgets/mpesa_settings_card.dart';
 import 'login_screen.dart';
+import 'reports_screen.dart';
+import 'staff_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -92,6 +94,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           const MpesaSettingsCard(),
+          const SizedBox(height: 16),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.assessment_outlined),
+              title: const Text('Reports & backup'),
+              subtitle: const Text('History, timestamps, and CSV export'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ReportsScreen()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.badge_outlined),
+              title: const Text('Staff & roles'),
+              subtitle: const Text(
+                'Add cashiers, stock, managers, and owners',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const StaffScreen()),
+                );
+              },
+            ),
+          ),
           const SizedBox(height: 16),
           Card(
             child: Padding(

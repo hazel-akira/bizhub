@@ -27,7 +27,7 @@ final todayStatsProvider = FutureProvider<
       totalPayments: dash?.todaySales ?? 0,
       pendingPayments: dash?.pendingCredit ?? 0,
       totalExpenses: dash?.todayExpenses ?? 0,
-      profit: dash?.todayProfit ?? 0,
+      profit: dash?.todayGrossProfit ?? dash?.todayProfit ?? 0,
       productsCount: dash?.productsCount ?? 0,
       lowStockCount: dash?.lowStockCount ?? 0,
     );
@@ -65,13 +65,13 @@ final dashboardAlertsProvider = FutureProvider<List<String>>((ref) async {
   if (stats.totalSales > 0 && stats.totalExpenses >= (stats.totalSales * 0.7)) {
     alerts.add('Warning: expenses are high compared to sales');
   }
-  if (!config.isFoodBusiness && stats.lowStockCount > 0) {
+  if (stats.lowStockCount > 0) {
     alerts.add(
       '${stats.lowStockCount} ${config.productNoun}(s) running low on stock',
     );
   }
-  if (!config.isFoodBusiness && stats.productsCount == 0) {
-    alerts.add('No ${config.productNoun}s in inventory — add products first');
+  if (stats.productsCount == 0) {
+    alerts.add('No ${config.productNoun}s in inventory — add products and set your prices');
   }
 
   return alerts;
@@ -134,6 +134,11 @@ final todayPerformanceProvider = FutureProvider<
       bool hasProfitRecord,
       int productsCount,
       String? topProductToday,
+      double cogs,
+      double grossProfit,
+      double operatingProfit,
+      double grossMargin,
+      double netMargin,
     })>((ref) async {
   final api = ref.watch(businessApiProvider);
   if (api != null) {
@@ -143,10 +148,15 @@ final todayPerformanceProvider = FutureProvider<
       totalUnitsSold: dash?.todayUnitsSold ?? 0,
       totalRevenue: dash?.todaySales ?? 0,
       totalCosts: dash?.todayExpenses ?? 0,
-      netProfit: dash?.todayProfit ?? 0,
+      netProfit: dash?.todayNetProfit ?? dash?.todayProfit ?? 0,
       hasProfitRecord: false,
       productsCount: dash?.productsCount ?? 0,
       topProductToday: dash?.topProductToday,
+      cogs: dash?.todayCogs ?? 0,
+      grossProfit: dash?.todayGrossProfit ?? 0,
+      operatingProfit: dash?.todayOperatingProfit ?? 0,
+      grossMargin: dash?.todayGrossMargin ?? 0,
+      netMargin: dash?.todayNetMargin ?? 0,
     );
   }
 
@@ -163,6 +173,11 @@ final todayPerformanceProvider = FutureProvider<
       hasProfitRecord: false,
       productsCount: 0,
       topProductToday: null,
+      cogs: 0.0,
+      grossProfit: 0.0,
+      operatingProfit: 0.0,
+      grossMargin: 0.0,
+      netMargin: 0.0,
     );
   }
 
@@ -185,6 +200,11 @@ final todayPerformanceProvider = FutureProvider<
     hasProfitRecord: profitRecord != null,
     productsCount: 0,
     topProductToday: null,
+    cogs: 0.0,
+    grossProfit: netProfit,
+    operatingProfit: netProfit,
+    grossMargin: totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0.0,
+    netMargin: totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0.0,
   );
 });
 

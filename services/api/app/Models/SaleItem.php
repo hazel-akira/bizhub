@@ -14,6 +14,7 @@ class SaleItem extends Model
         'product_id',
         'quantity',
         'unit_price',
+        'unit_cost',
         'total_price',
     ];
 
@@ -21,6 +22,7 @@ class SaleItem extends Model
     {
         return [
             'unit_price' => 'decimal:2',
+            'unit_cost' => 'decimal:2',
             'total_price' => 'decimal:2',
         ];
     }

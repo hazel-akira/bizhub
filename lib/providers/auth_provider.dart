@@ -5,6 +5,7 @@ import '../models/google_auth_exceptions.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/google_auth_service.dart';
+import '../core/staff_access.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
@@ -204,5 +205,14 @@ final authProvider =
   return AuthNotifier(
     ref.watch(authServiceProvider),
     ref.watch(googleAuthServiceProvider),
+  );
+});
+
+final staffAccessProvider = Provider<StaffAccess>((ref) {
+  final user = ref.watch(authProvider).user;
+  if (user == null) return StaffAccess.full();
+  return StaffAccess(
+    roles: user.resolvedRoles,
+    permissions: user.resolvedPermissions.toSet(),
   );
 });

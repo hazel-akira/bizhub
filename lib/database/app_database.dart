@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
-import '../core/constants.dart';
 import '../core/phone_utils.dart';
 
 part 'app_database.g.dart';
@@ -528,8 +527,9 @@ class AppDatabase extends _$AppDatabase {
     final customer = await getCustomer(order.customerId);
     final customerName = customer?.name ?? 'Unknown';
     final totalAmount =
-        (order.ndenguCount * SamosaPrices.ndenguPrice) +
-            (order.meatCount * SamosaPrices.meatPrice);
+        (order.ndenguCount + order.meatCount) > 0
+            ? order.ndenguCount + order.meatCount.toDouble()
+            : 0.0;
 
     await (update(orders)..where((t) => t.id.equals(orderId))).write(
       OrdersCompanion(

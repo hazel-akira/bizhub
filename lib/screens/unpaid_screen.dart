@@ -245,6 +245,7 @@ class _UnpaidScreenState extends ConsumerState<UnpaidScreen> {
                                       ),
                                     ),
                                     IconButton(
+                                      visualDensity: VisualDensity.compact,
                                       icon: const Icon(Icons.chat),
                                       onPressed: () {
                                         final msg =

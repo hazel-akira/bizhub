@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/layout.dart';
 import 'providers/api_data_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/business_api_provider.dart';
@@ -17,9 +18,11 @@ import 'screens/orders_screen.dart';
 import 'screens/inventory_screen.dart';
 import 'screens/production_screen.dart';
 import 'screens/profit_tracker_screen.dart';
+import 'screens/reports_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/staff_screen.dart';
 
 void main() {
   runApp(
@@ -40,6 +43,15 @@ class BizHubApp extends ConsumerWidget {
       title: 'Akira Flow',
       debugShowCheckedModeBanner: false,
       theme: theme,
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+            textScaler: AppLayout.clampedTextScaler(mq.textScaler),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const SplashScreen(),
     );
   }
@@ -98,7 +110,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
         section: _NavSection.dashboard,
         icon: Icons.dashboard_outlined,
         selectedIcon: Icons.dashboard,
-        label: 'Dashboard',
+        label: 'Home',
       ),
       const _BottomNavItem(
         section: _NavSection.sales,
@@ -108,7 +120,16 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
       ),
     ];
 
-    if (config.showOrdersNav) {
+    if (config.showInventoryNav) {
+      items.add(
+        const _BottomNavItem(
+          section: _NavSection.inventory,
+          icon: Icons.inventory_2_outlined,
+          selectedIcon: Icons.inventory_2,
+          label: 'Stock',
+        ),
+      );
+    } else if (config.showOrdersNav) {
       items.add(
         const _BottomNavItem(
           section: _NavSection.orders,
@@ -117,23 +138,23 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
           label: 'Orders',
         ),
       );
-    } else if (config.showInventoryNav) {
-      items.add(
-        const _BottomNavItem(
-          section: _NavSection.inventory,
-          icon: Icons.inventory_2_outlined,
-          selectedIcon: Icons.inventory_2,
-          label: 'Inventory',
-        ),
-      );
     }
+
+    items.add(
+      const _BottomNavItem(
+        section: _NavSection.reports,
+        icon: Icons.assessment_outlined,
+        selectedIcon: Icons.assessment,
+        label: 'Reports',
+      ),
+    );
 
     items.add(
       const _BottomNavItem(
         section: _NavSection.expenses,
         icon: Icons.money_off_csred_outlined,
         selectedIcon: Icons.money_off_csred,
-        label: 'Expenses',
+        label: 'Costs',
       ),
     );
 
@@ -172,6 +193,8 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
         return const ProductionScreen();
       case _NavSection.inventory:
         return const InventoryScreen();
+      case _NavSection.reports:
+        return const ReportsScreen();
       case _NavSection.customers:
         return const CustomersScreen();
       case _NavSection.settings:
@@ -208,7 +231,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(appBarTitle),
+        title: Text(appBarTitle, overflow: TextOverflow.ellipsis),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       ),
       drawer: Drawer(
@@ -261,30 +284,53 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
                 ),
               ),
               ListTile(
+                leading: const Icon(Icons.assessment_outlined),
+                title: const Text('Reports'),
+                selected: _activeSection == _NavSection.reports,
+                onTap: () => _setDrawerSection(_NavSection.reports),
+              ),
+              ListTile(
                 leading: const Icon(Icons.smart_toy_outlined),
                 title: const Text('Assistant'),
                 selected: _activeSection == _NavSection.assistant,
                 onTap: () => _setDrawerSection(_NavSection.assistant),
               ),
-              if (config.showProductionDrawer)
+              if (config.showOrdersNav)
                 ListTile(
-                  leading: const Icon(Icons.bakery_dining_outlined),
-                  title: const Text('Production'),
-                  selected: _activeSection == _NavSection.production,
-                  onTap: () => _setDrawerSection(_NavSection.production),
-                )
-              else
+                  leading: const Icon(Icons.shopping_bag_outlined),
+                  title: const Text('Orders'),
+                  selected: _activeSection == _NavSection.orders,
+                  onTap: () => _setDrawerSection(_NavSection.orders),
+                ),
+              if (config.showInventoryNav)
                 ListTile(
                   leading: const Icon(Icons.inventory_2_outlined),
                   title: const Text('Inventory'),
                   selected: _activeSection == _NavSection.inventory,
                   onTap: () => _setDrawerSection(_NavSection.inventory),
                 ),
+              if (config.showProductionDrawer)
+                ListTile(
+                  leading: const Icon(Icons.bakery_dining_outlined),
+                  title: const Text('Production'),
+                  selected: _activeSection == _NavSection.production,
+                  onTap: () => _setDrawerSection(_NavSection.production),
+                ),
               ListTile(
                 leading: const Icon(Icons.people_outline),
                 title: const Text('Customers'),
                 selected: _activeSection == _NavSection.customers,
                 onTap: () => _setDrawerSection(_NavSection.customers),
+              ),
+              ListTile(
+                leading: const Icon(Icons.badge_outlined),
+                title: const Text('Staff & roles'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const StaffScreen()),
+                  );
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.settings_outlined),
@@ -314,6 +360,9 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentBottomIndex,
         onDestinationSelected: _setBottomSection,
+        labelBehavior: bottomItems.length >= 5
+            ? NavigationDestinationLabelBehavior.onlyShowSelected
+            : NavigationDestinationLabelBehavior.alwaysShow,
         destinations: bottomItems
             .map(
               (item) => NavigationDestination(
@@ -351,6 +400,7 @@ enum _NavSection {
   assistant,
   production,
   inventory,
+  reports,
   customers,
   settings,
 }

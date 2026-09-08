@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/business_type_config.dart';
+import '../core/layout.dart';
 import '../providers/api_data_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/business_api_provider.dart';
@@ -10,6 +11,7 @@ import '../providers/dashboard_provider.dart';
 import 'inventory_screen.dart';
 import 'orders_screen.dart';
 import 'profit_tracker_screen.dart';
+import 'reports_screen.dart';
 import 'sales_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -69,10 +71,10 @@ class DashboardScreen extends ConsumerWidget {
                     useCloud: useCloud,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 _StatsGrid(config: config, stats: stats),
-                if (!config.isFoodBusiness && useCloud) ...[
-                  const SizedBox(height: 12),
+                if (useCloud) ...[
+                  const SizedBox(height: 14),
                   topProductsAsync.when(
                     loading: () => const SizedBox.shrink(),
                     error: (_, _) => const SizedBox.shrink(),
@@ -86,14 +88,12 @@ class DashboardScreen extends ConsumerWidget {
                               children: [
                                 Text(
                                   'Your ${config.productNoun}s',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
+                                  style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(fontWeight: FontWeight.bold),
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 10),
                                 Text(config.emptyCatalogHint),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 14),
                                 FilledButton.icon(
                                   onPressed: () => Navigator.of(context).push(
                                     MaterialPageRoute(
@@ -116,9 +116,7 @@ class DashboardScreen extends ConsumerWidget {
                             children: [
                               Text(
                                 'Top sellers today',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
+                                style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 8),
@@ -158,9 +156,7 @@ class DashboardScreen extends ConsumerWidget {
                         children: [
                           Text(
                             'Quick insights',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 8),
@@ -226,15 +222,19 @@ class _Header extends StatelessWidget {
                 children: [
                   Text(
                     businessName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   Text(
                     categoryLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
+                      color: Colors.grey.shade600,
+                    ),
                   ),
                 ],
               ),
@@ -250,9 +250,9 @@ class _Header extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           dateLabel,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[700],
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
         ),
       ],
     );
@@ -303,7 +303,13 @@ class _PerformanceCard extends StatelessWidget {
     bool hasProfitRecord,
     int productsCount,
     String? topProductToday,
-  }) performance;
+    double cogs,
+    double grossProfit,
+    double operatingProfit,
+    double grossMargin,
+    double netMargin,
+  })
+  performance;
   final bool useCloud;
 
   @override
@@ -319,12 +325,15 @@ class _PerformanceCard extends StatelessWidget {
               children: [
                 const Icon(Icons.trending_up),
                 const SizedBox(width: 10),
-                Text(
-                  "Today's performance",
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w900),
+                Expanded(
+                  child: Text(
+                    "Today's performance",
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -351,8 +360,7 @@ class _PerformanceCard extends StatelessWidget {
                 label: config.unitsSoldLabel,
                 value: '${performance.totalUnitsSold}',
               ),
-              if (!config.isFoodBusiness &&
-                  performance.topProductToday != null) ...[
+              if (performance.topProductToday != null) ...[
                 const SizedBox(height: 8),
                 _MetricRow(
                   icon: Icons.star_outline,
@@ -368,22 +376,36 @@ class _PerformanceCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               _MetricRow(
+                icon: Icons.inventory_2_outlined,
+                label: 'COGS',
+                value: 'KES ${performance.cogs.toStringAsFixed(0)}',
+              ),
+              const SizedBox(height: 8),
+              _MetricRow(
+                icon: Icons.stacked_line_chart,
+                label: 'Gross profit',
+                value:
+                    'KES ${performance.grossProfit.toStringAsFixed(0)} (${performance.grossMargin.toStringAsFixed(1)}%)',
+              ),
+              const SizedBox(height: 8),
+              _MetricRow(
                 icon: Icons.money_off_outlined,
-                label: 'Expenses',
+                label: 'Operating expenses',
                 value: 'KES ${performance.totalCosts.toStringAsFixed(0)}',
               ),
               const SizedBox(height: 10),
-              Text(
-                'Profit: KES ${performance.netProfit.toStringAsFixed(0)}',
+              FitValue(
+                text:
+                    'Net profit: KES ${performance.netProfit.toStringAsFixed(0)} (${performance.netMargin.toStringAsFixed(1)}%)',
+                alignment: Alignment.centerLeft,
+                textAlign: TextAlign.start,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: performance.netProfit >= 0
-                          ? Colors.green
-                          : Colors.red,
-                    ),
+                  fontWeight: FontWeight.w900,
+                  color: performance.netProfit >= 0 ? Colors.green : Colors.red,
+                ),
               ),
             ],
-            if (config.isFoodBusiness && performance.hasSales) ...[
+            if (performance.hasSales) ...[
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
@@ -424,10 +446,16 @@ class _MetricRow extends StatelessWidget {
       children: [
         Icon(icon, size: 18),
         const SizedBox(width: 8),
-        Text('$label: '),
+        Flexible(
+          flex: 2,
+          child: Text('$label: ', maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
         Expanded(
-          child: Text(
-            value,
+          flex: 3,
+          child: FitValue(
+            text: value,
+            alignment: Alignment.centerLeft,
+            textAlign: TextAlign.start,
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
@@ -448,18 +476,22 @@ class _StatsGrid extends StatelessWidget {
     double profit,
     int productsCount,
     int lowStockCount,
-  }) stats;
+  })
+  stats;
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final aspect = AppLayout.statsAspectRatio(width);
+
     if (config.isFoodBusiness) {
       return GridView.count(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.25,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
+        childAspectRatio: aspect,
         children: [
           _StatCard(
             title: 'Total sales',
@@ -495,7 +527,7 @@ class _StatsGrid extends StatelessWidget {
       crossAxisCount: 2,
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.25,
+      childAspectRatio: aspect,
       children: [
         _StatCard(
           title: "Today's sales",
@@ -533,41 +565,57 @@ class _QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return AdaptiveButtonRow(
       children: [
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: () {
-              if (config.showOrdersNav) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const OrdersScreen()),
-                );
-              } else {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SalesScreen()),
-                );
-              }
-            },
-            icon: Icon(config.primaryQuickActionIcon),
-            label: Text(config.primaryQuickActionLabel),
+        FilledButton.icon(
+          onPressed: () {
+            if (config.showOrdersNav) {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
+            } else {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SalesScreen()));
+            }
+          },
+          icon: Icon(config.primaryQuickActionIcon),
+          label: Text(
+            config.primaryQuickActionLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: () {
-              if (config.showInventoryNav) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const InventoryScreen()),
-                );
-              } else {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SalesScreen()),
-                );
-              }
-            },
-            icon: Icon(config.secondaryQuickActionIcon),
-            label: Text(config.secondaryQuickActionLabel),
+        FilledButton.icon(
+          onPressed: () {
+            if (config.showInventoryNav) {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const InventoryScreen()),
+              );
+            } else {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SalesScreen()));
+            }
+          },
+          icon: Icon(config.secondaryQuickActionIcon),
+          label: Text(
+            config.secondaryQuickActionLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ReportsScreen()),
+            );
+          },
+          icon: const Icon(Icons.assessment_outlined),
+          label: const Text(
+            'Reports',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -590,10 +638,9 @@ class _AlertsCard extends StatelessWidget {
           children: [
             Text(
               'Alerts',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             if (alerts.isEmpty) const Text('No critical alerts'),
@@ -641,26 +688,33 @@ class _StatCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            CircleAvatar(
-              backgroundColor: color.withValues(alpha: 0.2),
-              radius: 20,
-              child: Icon(icon, color: color, size: 20),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: CircleAvatar(
+                backgroundColor: color.withValues(alpha: 0.2),
+                radius: 18,
+                child: Icon(icon, color: color, size: 18),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(height: 8),
             Text(
               title,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Colors.grey[700],
-                  ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(color: Colors.grey[700]),
             ),
             const SizedBox(height: 2),
-            Text(
-              'KES ${value.toStringAsFixed(0)}',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+            FitValue(
+              text: 'KES ${value.toStringAsFixed(0)}',
+              alignment: Alignment.centerLeft,
+              textAlign: TextAlign.start,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -690,26 +744,33 @@ class _IntStatCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            CircleAvatar(
-              backgroundColor: color.withValues(alpha: 0.2),
-              radius: 20,
-              child: Icon(icon, color: color, size: 20),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: CircleAvatar(
+                backgroundColor: color.withValues(alpha: 0.2),
+                radius: 18,
+                child: Icon(icon, color: color, size: 18),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(height: 8),
             Text(
               title,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Colors.grey[700],
-                  ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(color: Colors.grey[700]),
             ),
             const SizedBox(height: 2),
-            Text(
-              '$value',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+            FitValue(
+              text: '$value',
+              alignment: Alignment.centerLeft,
+              textAlign: TextAlign.start,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
           ],
         ),

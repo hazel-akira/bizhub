@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/layout.dart';
 import '../providers/profit_tracker_provider.dart';
 import '../providers/business_profile_provider.dart';
 import '../providers/business_api_provider.dart';
+import '../providers/api_data_provider.dart';
 import '../widgets/food_only_screen.dart';
 
 class ProfitTrackerScreen extends ConsumerStatefulWidget {
@@ -81,6 +83,10 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
   @override
   Widget build(BuildContext context) {
     final config = ref.watch(businessTypeConfigProvider);
+    final useCloud = ref.watch(useCloudDataProvider);
+    if (useCloud) {
+      return const _CloudProfitScreen();
+    }
     if (!config.isFoodBusiness) {
       return const FoodOnlyScreen(
         title: 'Profit tracker',
@@ -116,8 +122,7 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
     final isProfit = profit >= 0;
     final profitColor = isProfit ? Colors.green : Colors.red;
 
-    final useCloud = ref.watch(useCloudDataProvider);
-    final recordsAsync = useCloud ? null : ref.watch(profitRecordsProvider);
+    final recordsAsync = ref.watch(profitRecordsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -399,7 +404,7 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
                     ),
               ),
               const SizedBox(height: 8),
-              recordsAsync!.when(
+              recordsAsync.when(
                 data: (records) {
                   if (records.isEmpty) {
                     return Card(
@@ -501,16 +506,21 @@ class _CalcRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
-        Text(
-          'KES ${value.toStringAsFixed(0)}',
-          style: valueStyle ??
-              Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                  ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: FitValue(
+            text: 'KES ${value.toStringAsFixed(0)}',
+            style: valueStyle ??
+                Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+          ),
         ),
       ],
     );
@@ -534,17 +544,169 @@ class _MiniRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Text(label)),
-        Text(
-          'KES ${value.toStringAsFixed(0)}',
-          style: valueStyle ??
-              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: color,
-                  ),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: FitValue(
+            text: 'KES ${value.toStringAsFixed(0)}',
+            style: valueStyle ??
+                Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: color,
+                    ),
+          ),
         ),
       ],
     );
   }
 }
+
+class _CloudProfitScreen extends ConsumerWidget {
+  const _CloudProfitScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dashAsync = ref.watch(apiDashboardProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profit'),
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(apiDashboardProvider);
+          ref.invalidate(apiSalesProvider);
+          ref.invalidate(apiExpensesProvider);
+        },
+        child: dashAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Could not load profit: $e')),
+          data: (dash) {
+            if (dash == null) {
+              return const Center(child: Text('Sign in to see profit.'));
+            }
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  "Today's profit",
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Gross profit = Revenue − cost of goods. '
+                  'Net profit = Revenue − COGS − operating expenses.',
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _ProfitLine('Revenue (sales)', dash.todaySales),
+                        _ProfitLine('Cost of goods sold (COGS)', dash.todayCogs),
+                        const Divider(),
+                        _ProfitLine(
+                          'Gross profit',
+                          dash.todayGrossProfit,
+                          emphasize: true,
+                          suffix:
+                              '${dash.todayGrossMargin.toStringAsFixed(1)}%',
+                        ),
+                        _ProfitLine(
+                          'Operating expenses',
+                          dash.todayExpenses,
+                        ),
+                        _ProfitLine(
+                          'Operating profit',
+                          dash.todayOperatingProfit,
+                        ),
+                        const Divider(),
+                        _ProfitLine(
+                          'Net profit',
+                          dash.todayNetProfit,
+                          emphasize: true,
+                          suffix: '${dash.todayNetMargin.toStringAsFixed(1)}%',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Set each product’s cost price in Inventory so COGS and margins stay accurate.',
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfitLine extends StatelessWidget {
+  const _ProfitLine(
+    this.label,
+    this.value, {
+    this.emphasize = false,
+    this.suffix,
+  });
+
+  final String label;
+  final double value;
+  final bool emphasize;
+  final String? suffix;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = value >= 0 ? Colors.green.shade800 : Colors.red;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: emphasize ? FontWeight.w800 : FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (suffix != null) ...[
+            Text(
+              suffix!,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: FitValue(
+              text: 'KES ${value.toStringAsFixed(0)}',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: emphasize ? color : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 

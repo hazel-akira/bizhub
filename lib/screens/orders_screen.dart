@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../core/constants.dart';
+import '../models/api_product.dart';
 import '../models/pending_order_view.dart';
 import '../providers/api_data_provider.dart';
 import '../providers/business_api_provider.dart';
@@ -112,7 +112,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                       ),
                       const SizedBox(height: 16),
                       _QtySelector(
-                        label: 'Ndengu',
+                        label: 'Ndengu (price from Inventory)',
                         value: _ndenguQty,
                         onChanged: (v) {
                           setModalState(() => _ndenguQty = v);
@@ -120,7 +120,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                       ),
                       const SizedBox(height: 8),
                       _QtySelector(
-                        label: 'Meat',
+                        label: 'Meat samosa (price from Inventory)',
                         value: _meatQty,
                         onChanged: (v) {
                           setModalState(() => _meatQty = v);
@@ -157,7 +157,24 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     );
   }
 
+  double _productPrice(List<ApiProduct> products, String needle) {
+    for (final product in products) {
+      if (product.name.toLowerCase().contains(needle)) {
+        return product.sellingPrice;
+      }
+    }
+    return 0;
+  }
+
+  double _orderTotal(PendingOrderView order, List<ApiProduct> products) {
+    return (order.ndenguCount * _productPrice(products, 'ndengu')) +
+        (order.meatCount * _productPrice(products, 'meat samosa'));
+  }
+
   Future<void> _onBought(PendingOrderView order) async {
+    final products = await ref.read(apiProductsProvider.future);
+    if (!mounted) return;
+    final total = _orderTotal(order, products);
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -172,9 +189,11 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             Text(
-              'Total: KES ${((order.ndenguCount * SamosaPrices.ndenguPrice) + (order.meatCount * SamosaPrices.meatPrice)).toStringAsFixed(0)}',
+              'Total: KES ${total.toStringAsFixed(0)}',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
+            const SizedBox(height: 8),
+            const Text('Uses the selling prices you set in Inventory.'),
             const SizedBox(height: 16),
             const Text('This will convert order to sale.'),
           ],
@@ -225,6 +244,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 
     final useCloud = ref.watch(useCloudDataProvider);
     final ordersAsync = ref.watch(pendingOrdersWithNamesProvider);
+    final products = ref.watch(apiProductsProvider).valueOrNull ?? const <ApiProduct>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -275,17 +295,26 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                           child: ListTile(
                             title: Text(
                               order.customerName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                             subtitle: Text(
-                              '${order.ndenguCount} ndengu, ${order.meatCount} meat • KES ${((order.ndenguCount * SamosaPrices.ndenguPrice) + (order.meatCount * SamosaPrices.meatPrice)).toStringAsFixed(0)}',
+                              '${order.ndenguCount} ndengu, ${order.meatCount} meat • KES ${_orderTotal(order, products).toStringAsFixed(0)}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            trailing: FilledButton.icon(
+                            trailing: FilledButton(
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                              ),
                               onPressed: () => _onBought(order),
-                              icon: const Icon(Icons.check_circle, size: 20),
-                              label: const Text('Mark as Served'),
+                              child: const Text('Served'),
                             ),
                           ),
                         ),

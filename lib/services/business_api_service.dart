@@ -1,12 +1,13 @@
-import '../core/constants.dart';
 import '../database/app_database.dart';
 import '../models/api_dashboard.dart';
 import '../models/api_expense.dart';
 import '../models/api_product.dart';
 import '../models/api_sale.dart';
+import '../models/auth_user.dart';
 import '../models/global_category.dart';
 import '../models/global_product.dart';
 import '../models/pending_order_view.dart';
+import '../core/staff_access.dart';
 import 'api_client.dart';
 
 class BusinessApiService {
@@ -27,48 +28,22 @@ class BusinessApiService {
         .toList();
   }
 
-  /// Ensures Ndengu + Meat products exist; returns name → product map.
+  /// Finds Ndengu / Meat Samosa products if the shop added them in Inventory.
   Future<Map<String, ApiProduct>> ensureDefaultProducts() async {
-    var products = await getProducts();
-
-    final hasNdengu = products.any(
-      (p) => p.name.toLowerCase().contains('ndengu'),
-    );
-    final hasMeat = products.any((p) => p.name.toLowerCase().contains('meat'));
-
-    if (!hasNdengu) {
-      await _createProduct('Ndengu Samosa', SamosaPrices.ndenguPrice);
-    }
-    if (!hasMeat) {
-      await _createProduct('Meat Samosa', SamosaPrices.meatPrice);
-    }
-
-    if (!hasNdengu || !hasMeat) {
-      products = await getProducts();
-    }
-
+    final products = await getProducts();
     final map = <String, ApiProduct>{};
     for (final p in products) {
       final lower = p.name.toLowerCase();
       if (lower.contains('ndengu')) map['ndengu'] = p;
-      if (lower.contains('meat')) map['meat'] = p;
+      if (lower.contains('meat samosa') || lower == 'meat samosa') {
+        map['meat'] = p;
+      } else if (!map.containsKey('meat') &&
+          lower.contains('meat') &&
+          lower.contains('samosa')) {
+        map['meat'] = p;
+      }
     }
     return map;
-  }
-
-  Future<ApiProduct> _createProduct(String name, double price) async {
-    final json = await _api.post(
-      '/api/products',
-      auth: true,
-      body: {
-        'name': name,
-        'selling_price': price,
-        'cost_price': price * 0.5,
-        'stock_quantity': 0,
-        'is_active': true,
-      },
-    );
-    return ApiProduct.fromJson(json['data'] as Map<String, dynamic>);
   }
 
   Future<List<ApiSale>> getSales() async {
@@ -196,7 +171,9 @@ class BusinessApiService {
     }
 
     if (items.isEmpty) {
-      throw Exception('No products configured for this sale');
+      throw Exception(
+        'Add Ndengu Samosa and Meat Samosa in Inventory and set their prices first.',
+      );
     }
 
     return createSaleWithItems(
@@ -216,6 +193,7 @@ class BusinessApiService {
     required List<({int productId, int quantity})> items,
     required String paymentMethod,
     int? customerId,
+    double? unitPrice,
   }) async {
     if (items.isEmpty) {
       throw Exception('Add at least one product to the sale');
@@ -232,13 +210,50 @@ class BusinessApiService {
               (item) => {
                 'product_id': item.productId,
                 'quantity': item.quantity,
+                'unit_price': ?unitPrice,
               },
             )
             .toList(),
       },
     );
 
-    return ApiSale.fromJson(json['data'] as Map<String, dynamic>);
+    final data = json['data'] as Map<String, dynamic>;
+    var sale = ApiSale.fromJson(data);
+
+    if (sale.isCollectedAtSale) {
+      double asDouble(dynamic v) {
+        if (v is num) return v.toDouble();
+        return double.tryParse('$v') ?? 0;
+      }
+
+      final rawPaid = data['is_paid'] == true || data['is_paid'] == 1;
+      final rawAmountPaid = asDouble(data['amount_paid']);
+      final rawOutstanding = data.containsKey('outstanding')
+          ? asDouble(data['outstanding'])
+          : sale.totalAmount - rawAmountPaid;
+      final due = rawOutstanding > 0.001
+          ? rawOutstanding
+          : (rawPaid || rawAmountPaid > 0 ? 0.0 : sale.totalAmount);
+
+      if (due > 0.001) {
+        try {
+          sale = await recordSalePayment(
+            saleId: sale.id,
+            amount: due,
+            paymentMethod: paymentMethod,
+          );
+        } catch (_) {
+          sale = sale.copyWith(
+            amountPaid: sale.totalAmount,
+            outstanding: 0,
+            isPaid: true,
+            paymentMethod: paymentMethod,
+          );
+        }
+      }
+    }
+
+    return sale;
   }
 
   Future<List<GlobalProduct>> searchGlobalProducts(String query) async {
@@ -275,7 +290,7 @@ class BusinessApiService {
   Future<ApiProduct> addProductFromGlobal({
     required int globalProductId,
     required double sellingPrice,
-    double? costPrice,
+    required double costPrice,
     int stockQuantity = 0,
     int reorderLevel = 5,
   }) async {
@@ -285,7 +300,7 @@ class BusinessApiService {
       body: {
         'global_product_id': globalProductId,
         'selling_price': sellingPrice,
-        'cost_price': costPrice ?? sellingPrice * 0.6,
+        'cost_price': costPrice,
         'stock_quantity': stockQuantity,
         'reorder_level': reorderLevel,
       },
@@ -296,8 +311,8 @@ class BusinessApiService {
   Future<ApiProduct> createCustomProduct({
     required String name,
     required double sellingPrice,
+    required double costPrice,
     int stockQuantity = 0,
-    double? costPrice,
   }) async {
     final json = await _api.post(
       '/api/products/custom',
@@ -305,7 +320,7 @@ class BusinessApiService {
       body: {
         'name': name,
         'selling_price': sellingPrice,
-        'cost_price': costPrice ?? sellingPrice * 0.6,
+        'cost_price': costPrice,
         'stock_quantity': stockQuantity,
         'is_active': true,
       },
@@ -316,8 +331,8 @@ class BusinessApiService {
   Future<ApiProduct> createProduct({
     required String name,
     required double sellingPrice,
+    required double costPrice,
     int stockQuantity = 0,
-    double? costPrice,
   }) async {
     return createCustomProduct(
       name: name,
@@ -331,12 +346,14 @@ class BusinessApiService {
     required int productId,
     String? name,
     double? sellingPrice,
+    double? costPrice,
     int? stockQuantity,
     bool? isActive,
   }) async {
     final body = <String, dynamic>{};
     if (name != null) body['name'] = name;
     if (sellingPrice != null) body['selling_price'] = sellingPrice;
+    if (costPrice != null) body['cost_price'] = costPrice;
     if (stockQuantity != null) body['stock_quantity'] = stockQuantity;
     if (isActive != null) body['is_active'] = isActive;
 
@@ -386,5 +403,69 @@ class BusinessApiService {
       },
     );
     return ApiExpense.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<List<StaffRoleInfo>> getStaffRoles() async {
+    final json = await _api.get('/api/staff/roles', auth: true);
+    final list = json['data'] as List<dynamic>? ?? [];
+    return list
+        .map(
+          (e) => StaffRoleInfo(
+            id: e['id'] as String,
+            label: e['label'] as String? ?? e['id'] as String,
+            summary: e['summary'] as String? ?? '',
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<AuthUser>> getStaff() async {
+    final json = await _api.get('/api/staff', auth: true);
+    final list = json['data'] as List<dynamic>? ?? [];
+    return list
+        .map((e) => AuthUser.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<AuthUser> createStaff({
+    required String name,
+    required String email,
+    required String password,
+    required List<String> roles,
+  }) async {
+    final json = await _api.post(
+      '/api/staff',
+      auth: true,
+      body: {
+        'name': name,
+        'email': email,
+        'password': password,
+        'roles': roles,
+      },
+    );
+    return AuthUser.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<AuthUser> updateStaff({
+    required int staffId,
+    String? name,
+    String? email,
+    String? password,
+    List<String>? roles,
+    bool? isActive,
+  }) async {
+    final body = <String, dynamic>{};
+    if (name != null) body['name'] = name;
+    if (email != null) body['email'] = email;
+    if (password != null && password.isNotEmpty) body['password'] = password;
+    if (roles != null) body['roles'] = roles;
+    if (isActive != null) body['is_active'] = isActive;
+    final json = await _api.put('/api/staff/$staffId', auth: true, body: body);
+    return AuthUser.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<AuthUser> deactivateStaff(int staffId) async {
+    final json = await _api.delete('/api/staff/$staffId', auth: true);
+    return AuthUser.fromJson(json['data'] as Map<String, dynamic>);
   }
 }

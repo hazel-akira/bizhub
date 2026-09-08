@@ -104,6 +104,8 @@ class ShopOrderService
             fn (Product $p) => str_contains(strtolower($p->name), 'ndengu')
         );
         $meat = $products->first(
+            fn (Product $p) => str_contains(strtolower($p->name), 'meat samosa')
+        ) ?? $products->first(
             fn (Product $p) => str_contains(strtolower($p->name), 'meat')
         );
 
@@ -112,7 +114,7 @@ class ShopOrderService
         if ($order->ndengu_count > 0) {
             if (! $ndengu) {
                 throw ValidationException::withMessages([
-                    'items' => ['Ndengu Samosa product not found. Complete business setup or add products.'],
+                    'items' => ['Ndengu Samosa not found. Add it in Inventory and set your selling price.'],
                 ]);
             }
             $items[] = ['product_id' => $ndengu->id, 'quantity' => $order->ndengu_count];
@@ -121,7 +123,7 @@ class ShopOrderService
         if ($order->meat_count > 0) {
             if (! $meat) {
                 throw ValidationException::withMessages([
-                    'items' => ['Meat Samosa product not found. Complete business setup or add products.'],
+                    'items' => ['Meat Samosa not found. Add it in Inventory and set your selling price.'],
                 ]);
             }
             $items[] = ['product_id' => $meat->id, 'quantity' => $order->meat_count];

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../core/layout.dart';
 import '../models/api_product.dart';
 import '../models/global_category.dart';
 import '../models/global_product.dart';
@@ -10,6 +11,7 @@ import '../providers/business_api_provider.dart';
 import '../providers/business_profile_provider.dart';
 import '../providers/business_theme_provider.dart';
 import '../widgets/centered_dialog.dart';
+import '../services/backup_export.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -448,7 +450,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 ),
                 validator: (v) {
                   final n = double.tryParse(v ?? '');
-                  if (n == null || n < 0) return 'Enter a valid price';
+                  if (n == null || n <= 0) return 'Enter a price greater than 0';
                   return null;
                 },
               ),
@@ -553,7 +555,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 ),
                 validator: (v) {
                   final n = double.tryParse(v ?? '');
-                  if (n == null || n < 0) return 'Enter a valid price';
+                  if (n == null || n <= 0) return 'Enter a price greater than 0';
                   return null;
                 },
               ),
@@ -608,26 +610,80 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     }
   }
 
-  Future<void> _adjustStock(
+  Future<void> _editProduct(
     BuildContext context,
     WidgetRef ref,
     ApiProduct product,
   ) async {
+    final priceCtrl = TextEditingController(
+      text: product.sellingPrice <= 0
+          ? ''
+          : product.sellingPrice.toStringAsFixed(0),
+    );
+    final costCtrl = TextEditingController(
+      text: product.costPrice <= 0 ? '' : product.costPrice.toStringAsFixed(0),
+    );
     final stockCtrl = TextEditingController(
       text: product.stockQuantity.toString(),
     );
+    final formKey = GlobalKey<FormState>();
     final palette = ref.read(businessThemePaletteProvider);
     final saved = await showCenteredDialog<bool>(
       context,
       palette: palette,
       builder: (ctx, colors) => CenteredDialogFrame(
         palette: colors,
-        title: 'Update stock',
-        subtitle: product.name,
-        body: TextField(
-          controller: stockCtrl,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Stock quantity'),
+        title: 'Edit ${product.name}',
+        subtitle: 'Set the selling price your customers will pay.',
+        body: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: priceCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Selling price (KES)',
+                ),
+                validator: (v) {
+                  final n = double.tryParse(v ?? '');
+                  if (n == null || n <= 0) return 'Enter a price greater than 0';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: costCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Cost price (KES)',
+                  helperText: 'What you pay — used for profit (Revenue − COGS)',
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  final n = double.tryParse(v);
+                  if (n == null || n < 0) return 'Enter a valid cost';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: stockCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Stock quantity'),
+                validator: (v) {
+                  final n = int.tryParse(v ?? '');
+                  if (n == null || n < 0) return 'Enter a valid quantity';
+                  return null;
+                },
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -635,7 +691,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(ctx, true);
+              }
+            },
             child: const Text('Save'),
           ),
         ],
@@ -643,18 +703,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
 
     if (saved != true) return;
-    final qty = int.tryParse(stockCtrl.text.trim());
-    if (qty == null || qty < 0) return;
 
     try {
       await ref.read(updateApiProductProvider)(
         productId: product.id,
-        stockQuantity: qty,
+        sellingPrice: double.parse(priceCtrl.text.trim()),
+        costPrice: costCtrl.text.trim().isEmpty
+            ? null
+            : double.parse(costCtrl.text.trim()),
+        stockQuantity: int.parse(stockCtrl.text.trim()),
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Stock updated')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Product updated')),
+        );
       }
     } catch (e) {
       if (context.mounted) {
@@ -663,6 +725,38 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     }
+  }
+
+  Future<void> _backupInventory(List<ApiProduct> products) async {
+    final stamp = AppLayout.dateLabel(DateTime.now()).replaceAll('/', '-');
+    final buffer = StringBuffer(
+      'name,selling_price,cost_price,stock,unit,active,added_at\n',
+    );
+    final sorted = [...products]..sort((a, b) {
+        final aAt = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bAt = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bAt.compareTo(aAt);
+      });
+    for (final p in sorted) {
+      buffer.writeln(
+        [
+          BackupExport.cell(p.name),
+          BackupExport.cell(p.sellingPrice.toStringAsFixed(2)),
+          BackupExport.cell(p.costPrice.toStringAsFixed(2)),
+          BackupExport.cell(p.stockQuantity),
+          BackupExport.cell(p.unit),
+          BackupExport.cell(p.isActive ? 'yes' : 'no'),
+          BackupExport.cell(
+            p.createdAt == null ? '' : AppLayout.stamp(p.createdAt!),
+          ),
+        ].join(','),
+      );
+    }
+    await BackupExport.shareCsv(
+      filename: 'akira-flow-inventory-$stamp.csv',
+      csv: buffer.toString(),
+      subject: 'Akira Flow inventory backup $stamp',
+    );
   }
 
   @override
@@ -677,6 +771,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         title: const Text('Inventory'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
         actions: [
+          if (useCloud)
+            IconButton(
+              tooltip: 'Backup inventory',
+              icon: const Icon(Icons.backup_outlined),
+              onPressed: () async {
+                final products = productsAsync.valueOrNull ?? [];
+                try {
+                  await _backupInventory(products);
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Backup failed: $e')),
+                  );
+                }
+              },
+            ),
           if (useCloud)
             IconButton(
               onPressed: () => _showAddOptions(context),
@@ -763,6 +873,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   final lowStock = products
                       .where((p) => p.stockQuantity <= 5)
                       .toList();
+                  final history = [...products]..sort((a, b) {
+                      final aAt =
+                          a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+                      final bAt =
+                          b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+                      return bAt.compareTo(aAt);
+                    });
 
                   return ListView(
                     padding: const EdgeInsets.all(16),
@@ -782,32 +899,66 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           ),
                         ),
                       const SizedBox(height: 8),
-                      ...products.map(
+                      Text(
+                        'History',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Newest products first. Each item shows when it was added.',
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...history.map(
                         (product) => Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
                             leading: _productLeading(product),
-                            title: Text(product.name),
-                            subtitle: Text(
-                              'KES ${product.sellingPrice.toStringAsFixed(0)}'
-                              ' • Stock: ${product.stockQuantity}'
-                              '${product.unit != null ? ' • ${product.unit}' : ''}'
-                              '${product.isActive ? '' : ' • Inactive'}',
+                            title: Text(
+                              product.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
+                            subtitle: Text(
+                              [
+                                if (product.sellingPrice <= 0)
+                                  'Set selling price • Stock: ${product.stockQuantity}'
+                                else
+                                  'KES ${product.sellingPrice.toStringAsFixed(0)}'
+                                      ' • Stock: ${product.stockQuantity}'
+                                      '${product.unit != null ? ' • ${product.unit}' : ''}'
+                                      '${product.isActive ? '' : ' • Inactive'}',
+                                if (product.createdAt != null)
+                                  'Added ${AppLayout.stamp(product.createdAt!)}',
+                              ].join('\n'),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            isThreeLine: product.createdAt != null,
+                            onTap: () => _editProduct(context, ref, product),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  iconSize: 20,
                                   icon: const Icon(Icons.add_a_photo_outlined),
                                   onPressed: () =>
                                       _pickAndUploadImage(context, product),
                                   tooltip: 'Add photo',
                                 ),
                                 IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  iconSize: 20,
                                   icon: const Icon(Icons.edit_outlined),
                                   onPressed: () =>
-                                      _adjustStock(context, ref, product),
-                                  tooltip: 'Update stock',
+                                      _editProduct(context, ref, product),
+                                  tooltip: 'Edit price & stock',
                                 ),
                               ],
                             ),

@@ -14,7 +14,12 @@ class CustomerController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $customers = Customer::forBusiness($request->user()->business_id)
+        $user = $request->user();
+        if (! $user->hasPermission('sell') && ! $user->hasPermission('manage_customers')) {
+            return $this->error('You do not have permission to do that.', 403);
+        }
+
+        $customers = Customer::forBusiness($user->business_id)
             ->orderBy('name')
             ->get();
 

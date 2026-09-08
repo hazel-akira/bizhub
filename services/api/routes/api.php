@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\ShopOrderController;
+use App\Http\Controllers\Api\StaffController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -80,51 +81,79 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index']);
 
         Route::get('/business', [BusinessController::class, 'show']);
-        Route::put('/business', [BusinessController::class, 'update']);
+        Route::put('/business', [BusinessController::class, 'update'])
+            ->middleware('permission:manage_settings');
 
         Route::get('/global-categories', [GlobalCategoryController::class, 'index']);
         Route::get('/global-products', [GlobalProductController::class, 'index']);
         Route::get('/global-products/search', [GlobalProductController::class, 'search']);
 
         Route::get('/categories', [CategoryController::class, 'index']);
-        Route::post('/categories', [CategoryController::class, 'store']);
-        Route::put('/categories/{category}', [CategoryController::class, 'update']);
-        Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+        Route::middleware('permission:add_product')->group(function () {
+            Route::post('/categories', [CategoryController::class, 'store']);
+            Route::put('/categories/{category}', [CategoryController::class, 'update']);
+            Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+        });
 
         Route::get('/products', [ProductController::class, 'index']);
         Route::get('/products/{product}', [ProductController::class, 'show']);
-        Route::post('/products/from-global', [ProductController::class, 'storeFromGlobal']);
-        Route::post('/products/custom', [ProductController::class, 'storeCustom']);
-        Route::post('/products/{product}/image', [ProductController::class, 'uploadImage']);
-        Route::post('/products', [ProductController::class, 'store']);
+        Route::middleware('permission:add_product')->group(function () {
+            Route::post('/products/from-global', [ProductController::class, 'storeFromGlobal']);
+            Route::post('/products/custom', [ProductController::class, 'storeCustom']);
+            Route::post('/products/{product}/image', [ProductController::class, 'uploadImage']);
+            Route::post('/products', [ProductController::class, 'store']);
+            Route::delete('/products/{product}', [ProductController::class, 'destroy']);
+        });
         Route::put('/products/{product}', [ProductController::class, 'update']);
-        Route::delete('/products/{product}', [ProductController::class, 'destroy']);
 
-        Route::get('/sales', [SaleController::class, 'index']);
-        Route::get('/sales/unpaid', [SaleController::class, 'unpaid']);
-        Route::get('/sales/{id}', [SaleController::class, 'show']);
-        Route::post('/sales', [SaleController::class, 'store']);
-        Route::post('/sales/{id}/payments', [SaleController::class, 'recordPayment']);
+        Route::middleware('permission:view_sales')->group(function () {
+            Route::get('/sales', [SaleController::class, 'index']);
+            Route::get('/sales/unpaid', [SaleController::class, 'unpaid']);
+            Route::get('/sales/{id}', [SaleController::class, 'show']);
+        });
+        Route::middleware('permission:sell')->group(function () {
+            Route::post('/sales', [SaleController::class, 'store']);
+            Route::post('/sales/{id}/payments', [SaleController::class, 'recordPayment']);
+        });
 
-        Route::get('/expenses', [ExpenseController::class, 'index']);
-        Route::post('/expenses', [ExpenseController::class, 'store']);
-        Route::put('/expenses/{expense}', [ExpenseController::class, 'update']);
-        Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy']);
+        Route::middleware('permission:manage_expenses')->group(function () {
+            Route::get('/expenses', [ExpenseController::class, 'index']);
+            Route::post('/expenses', [ExpenseController::class, 'store']);
+            Route::put('/expenses/{expense}', [ExpenseController::class, 'update']);
+            Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy']);
+        });
 
         Route::get('/customers', [CustomerController::class, 'index']);
-        Route::post('/customers', [CustomerController::class, 'store']);
-        Route::put('/customers/{customer}', [CustomerController::class, 'update']);
-        Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+        Route::middleware('permission:manage_customers')->group(function () {
+            Route::post('/customers', [CustomerController::class, 'store']);
+            Route::put('/customers/{customer}', [CustomerController::class, 'update']);
+            Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+        });
 
-        Route::get('/shop-orders', [ShopOrderController::class, 'index']);
-        Route::post('/shop-orders', [ShopOrderController::class, 'store']);
-        Route::post('/shop-orders/{id}/fulfill', [ShopOrderController::class, 'fulfill']);
+        Route::get('/shop-orders', [ShopOrderController::class, 'index'])
+            ->middleware('permission:view_sales');
+        Route::middleware('permission:sell')->group(function () {
+            Route::post('/shop-orders', [ShopOrderController::class, 'store']);
+            Route::post('/shop-orders/{id}/fulfill', [ShopOrderController::class, 'fulfill']);
+        });
 
-        Route::get('/mpesa/config', [MpesaController::class, 'config']);
-        Route::put('/mpesa/config', [MpesaController::class, 'updateConfig']);
-        Route::post('/mpesa/stk-push', [MpesaController::class, 'stkPush']);
-        Route::post('/mpesa/stk', [MpesaController::class, 'stk']);
-        Route::get('/mpesa/status/{checkoutRequestId}', [MpesaController::class, 'status']);
+        Route::get('/mpesa/config', [MpesaController::class, 'config'])
+            ->middleware('permission:manage_settings');
+        Route::put('/mpesa/config', [MpesaController::class, 'updateConfig'])
+            ->middleware('permission:manage_settings');
+        Route::middleware('permission:sell')->group(function () {
+            Route::post('/mpesa/stk-push', [MpesaController::class, 'stkPush']);
+            Route::post('/mpesa/stk', [MpesaController::class, 'stk']);
+            Route::get('/mpesa/status/{checkoutRequestId}', [MpesaController::class, 'status']);
+        });
+
+        Route::middleware('permission:manage_staff')->group(function () {
+            Route::get('/staff/roles', [StaffController::class, 'roles']);
+            Route::get('/staff', [StaffController::class, 'index']);
+            Route::post('/staff', [StaffController::class, 'store']);
+            Route::put('/staff/{staff}', [StaffController::class, 'update']);
+            Route::delete('/staff/{staff}', [StaffController::class, 'destroy']);
+        });
     });
 
     // Online orders (web client checkout)

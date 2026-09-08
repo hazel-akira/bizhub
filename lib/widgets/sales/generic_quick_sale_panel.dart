@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/layout.dart';
 import '../../models/api_product.dart';
 import '../../providers/api_data_provider.dart';
 import '../../providers/business_api_provider.dart';
+import '../../providers/customers_provider.dart';
 import '../../screens/sale_receipt_screen.dart';
 import 'mpesa_checkout_flow.dart';
 
@@ -12,10 +14,12 @@ class GenericQuickSalePanel extends ConsumerStatefulWidget {
     super.key,
     required this.onSaleRecorded,
     this.onManageInventory,
+    this.emptyCatalogHint,
   });
 
   final VoidCallback onSaleRecorded;
   final VoidCallback? onManageInventory;
+  final String? emptyCatalogHint;
 
   @override
   ConsumerState<GenericQuickSalePanel> createState() =>
@@ -51,6 +55,16 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
       _cart.values.fold<int>(0, (sum, line) => sum + line.quantity);
 
   void _addProduct(ApiProduct product) {
+    if (product.sellingPrice <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Set a selling price for ${product.name} in Inventory first.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() {
       final existing = _cart[product.id];
       if (existing != null) {
@@ -72,6 +86,54 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
     });
   }
 
+  Future<int?> _pickCustomerForCredit() async {
+    final customers = await ref.read(customersProvider.future);
+    if (!mounted) return null;
+    if (customers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add a customer first, then save the unpaid sale.'),
+        ),
+      );
+      return null;
+    }
+
+    int selectedId = customers.first.id;
+    return showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Who owes this sale?'),
+          content: DropdownButtonFormField<int>(
+            initialValue: selectedId,
+            decoration: const InputDecoration(labelText: 'Customer'),
+            items: customers
+                .map(
+                  (c) => DropdownMenuItem<int>(
+                    value: c.id,
+                    child: Text(c.name),
+                  ),
+                )
+                .toList(),
+            onChanged: (v) {
+              if (v != null) setLocal(() => selectedId = v);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, selectedId),
+              child: const Text('Save unpaid'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _submit({required String method}) async {
     if (_isSubmitting || _cart.isEmpty) return;
 
@@ -87,7 +149,14 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
 
     setState(() => _isSubmitting = true);
     try {
+      int? customerId;
+      if (method == 'credit') {
+        customerId = await _pickCustomerForCredit();
+        if (customerId == null) return;
+      }
+
       if (method == 'mpesa') {
+        if (!mounted) return;
         final paid = await MpesaCheckoutFlow.collect(
           context: context,
           ref: ref,
@@ -124,6 +193,7 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
             .map((line) => (productId: line.product.id, quantity: line.quantity))
             .toList(),
         paymentMethod: method,
+        customerId: customerId,
       );
 
       widget.onSaleRecorded();
@@ -134,7 +204,9 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
           content: Text(
             method == 'credit'
                 ? 'Sale saved on credit — settle in Customers → Unpaid'
-                : 'Sale completed',
+                : method == 'mpesa'
+                    ? 'M-Pesa sale recorded'
+                    : 'Cash sale recorded',
           ),
         ),
       );
@@ -191,12 +263,16 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                       children: [
                         Icon(Icons.point_of_sale, color: Colors.blue.shade700),
                         const SizedBox(width: 8),
-                        Text(
-                          'Product sale',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w900),
+                        Expanded(
+                          child: Text(
+                            'Product sale',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
                         ),
                       ],
                     ),
@@ -219,6 +295,7 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                     if (activeProducts.isEmpty)
                       _EmptyProductsCard(
                         onManageInventory: widget.onManageInventory,
+                        hint: widget.emptyCatalogHint,
                       )
                     else if (filtered.isEmpty)
                       const Text('No products match your search')
@@ -233,16 +310,34 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                             final inCart = _cart[product.id]?.quantity ?? 0;
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: Text(product.name),
+                              title: Text(
+                                product.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                               subtitle: Text(
-                                'KES ${product.sellingPrice.toStringAsFixed(0)}'
-                                '${product.stockQuantity > 0 ? ' • Stock: ${product.stockQuantity}' : ''}',
+                                product.sellingPrice <= 0
+                                    ? 'Set selling price in Inventory'
+                                    : 'KES ${product.sellingPrice.toStringAsFixed(0)}'
+                                        '${product.stockQuantity > 0 ? ' • Stock: ${product.stockQuantity}' : ''}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               trailing: FilledButton.tonal(
+                                style: FilledButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                ),
                                 onPressed: _isSubmitting
                                     ? null
                                     : () => _addProduct(product),
-                                child: Text(inCart > 0 ? 'Add ($inCart)' : 'Add'),
+                                child: Text(
+                                  inCart > 0 ? 'Add ($inCart)' : 'Add',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                               onTap: _isSubmitting
                                   ? null
@@ -292,12 +387,16 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                                   children: [
                                     Text(
                                       line.product.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                     Text(
                                       'KES ${line.product.sellingPrice.toStringAsFixed(0)} each',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         color: Colors.grey.shade600,
                                         fontSize: 12,
@@ -307,6 +406,8 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                                 ),
                               ),
                               IconButton(
+                                visualDensity: VisualDensity.compact,
+                                iconSize: 20,
                                 onPressed: _isSubmitting
                                     ? null
                                     : () => _changeQty(line.product.id, -1),
@@ -314,15 +415,20 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                               ),
                               Text('${line.quantity}'),
                               IconButton(
+                                visualDensity: VisualDensity.compact,
+                                iconSize: 20,
                                 onPressed: _isSubmitting
                                     ? null
                                     : () => _changeQty(line.product.id, 1),
                                 icon: const Icon(Icons.add_circle_outline),
                               ),
-                              Text(
-                                'KES ${line.lineTotal.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
+                              Flexible(
+                                child: FitValue(
+                                  text:
+                                      'KES ${line.lineTotal.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ],
@@ -339,25 +445,28 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                       ),
                     ],
                     const SizedBox(height: 12),
-                    Row(
+                    AdaptiveButtonRow(
                       children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _canPay
-                                ? () => _submit(method: 'cash')
-                                : null,
-                            icon: const Icon(Icons.payments),
-                            label: const Text('Pay cash'),
+                        FilledButton.icon(
+                          onPressed: _canPay
+                              ? () => _submit(method: 'cash')
+                              : null,
+                          icon: const Icon(Icons.payments),
+                          label: const Text(
+                            'Pay cash',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: FilledButton.tonalIcon(
-                            onPressed: _canPay
-                                ? () => _submit(method: 'mpesa')
-                                : null,
-                            icon: const Icon(Icons.phone_android),
-                            label: const Text('Pay M-Pesa'),
+                        FilledButton.tonalIcon(
+                          onPressed: _canPay
+                              ? () => _submit(method: 'mpesa')
+                              : null,
+                          icon: const Icon(Icons.phone_android),
+                          label: const Text(
+                            'Pay M-Pesa',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -383,9 +492,10 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
 }
 
 class _EmptyProductsCard extends StatelessWidget {
-  const _EmptyProductsCard({this.onManageInventory});
+  const _EmptyProductsCard({this.onManageInventory, this.hint});
 
   final VoidCallback? onManageInventory;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
@@ -397,7 +507,8 @@ class _EmptyProductsCard extends StatelessWidget {
         const Text('No products in inventory yet.'),
         const SizedBox(height: 4),
         Text(
-          'Add products first, then sell them from this screen.',
+          hint ??
+              'Add products in Inventory and set your selling price, then sell them from this screen.',
           style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
         ),
         if (onManageInventory != null) ...[

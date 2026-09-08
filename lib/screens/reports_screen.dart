@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/layout.dart';
 import '../database/app_database.dart';
 import '../models/api_expense.dart';
 import '../models/api_sale.dart';
@@ -9,6 +10,7 @@ import '../providers/business_api_provider.dart';
 import '../providers/expenses_provider.dart';
 import '../providers/reports_provider.dart';
 import '../providers/sales_provider.dart';
+import '../services/backup_export.dart';
 
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
@@ -30,6 +32,17 @@ class ReportsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Reports'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        actions: [
+          IconButton(
+            tooltip: 'Backup history',
+            icon: const Icon(Icons.backup_outlined),
+            onPressed: () => _backup(
+              context,
+              ref,
+              useCloud: useCloud,
+            ),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -50,6 +63,13 @@ class ReportsScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text(
+                'As of ${AppLayout.stamp(now)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey.shade700,
+                    ),
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -69,8 +89,15 @@ class ReportsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 24),
               Text(
-                'All Transactions',
-                style: Theme.of(context).textTheme.titleLarge,
+                'History',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Sales and expenses grouped by day (dd/mm/yyyy).',
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
               ),
               const SizedBox(height: 12),
               salesAsync.when(
@@ -91,16 +118,34 @@ class ReportsScreen extends ConsumerWidget {
                           child: Padding(
                             padding: const EdgeInsets.all(24),
                             child: Text(
-                              'No transactions yet',
+                              'No history yet',
                               style: TextStyle(color: Colors.grey[600]),
                             ),
                           ),
                         );
                       }
                       return Column(
-                        children: transactions
-                            .map((t) => _TransactionTile(transaction: t))
-                            .toList(),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final group in _groupByDay(transactions)) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: 8,
+                                bottom: 6,
+                              ),
+                              child: Text(
+                                group.label,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                            ...group.items.map(
+                              (t) => _TransactionTile(transaction: t),
+                            ),
+                          ],
+                        ],
                       );
                     },
                     loading: () =>
@@ -118,7 +163,68 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  List<_Transaction> _mergeCloudTransactions(
+  static Future<void> _backup(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool useCloud,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final transactions = useCloud
+          ? _mergeCloudTransactions(
+              await ref.read(apiSalesProvider.future),
+              await ref.read(apiExpensesProvider.future),
+            )
+          : _mergeTransactions(
+              await ref.read(allSalesProvider.future),
+              await ref.read(allExpensesProvider.future),
+            );
+
+      final buffer = StringBuffer(
+        'date,time,type,description,amount,direction\n',
+      );
+      for (final t in transactions) {
+        final local = t.date.toLocal();
+        buffer.writeln(
+          [
+            BackupExport.cell(AppLayout.dateLabel(local)),
+            BackupExport.cell(AppLayout.stamp(local).split(' ').last),
+            BackupExport.cell(t.type),
+            BackupExport.cell(t.description),
+            BackupExport.cell(t.amount.toStringAsFixed(2)),
+            BackupExport.cell(t.isIncome ? 'in' : 'out'),
+          ].join(','),
+        );
+      }
+
+      final stamp = AppLayout.dateLabel(DateTime.now()).replaceAll('/', '-');
+      await BackupExport.shareCsv(
+        filename: 'akira-flow-reports-$stamp.csv',
+        csv: buffer.toString(),
+        subject: 'Akira Flow reports backup $stamp',
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Backup failed: $e')),
+      );
+    }
+  }
+
+  static List<_DayGroup> _groupByDay(List<_Transaction> transactions) {
+    final groups = <String, _DayGroup>{};
+    final order = <String>[];
+    for (final t in transactions) {
+      final label = AppLayout.dateLabel(t.date);
+      if (!groups.containsKey(label)) {
+        order.add(label);
+        groups[label] = _DayGroup(label: label, items: []);
+      }
+      groups[label]!.items.add(t);
+    }
+    return [for (final key in order) groups[key]!];
+  }
+
+  static List<_Transaction> _mergeCloudTransactions(
     List<ApiSale> sales,
     List<ApiExpense> expenses,
   ) {
@@ -151,7 +257,7 @@ class ReportsScreen extends ConsumerWidget {
     return list;
   }
 
-  List<_Transaction> _mergeTransactions(
+  static List<_Transaction> _mergeTransactions(
     List<Sale> sales,
     List<Expense> expenses,
   ) {
@@ -183,6 +289,13 @@ class ReportsScreen extends ConsumerWidget {
   }
 }
 
+class _DayGroup {
+  _DayGroup({required this.label, required this.items});
+
+  final String label;
+  final List<_Transaction> items;
+}
+
 class _ProfitCard extends StatelessWidget {
   final String title;
   final AsyncValue<double> async;
@@ -197,18 +310,22 @@ class _ProfitCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
               title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(
                 context,
               ).textTheme.titleSmall?.copyWith(color: Colors.grey[700]),
             ),
             const SizedBox(height: 8),
             async.when(
-              data: (value) => Text(
-                'KES ${value.toStringAsFixed(0)}',
+              data: (value) => FitValue(
+                text: 'KES ${value.toStringAsFixed(0)}',
+                alignment: Alignment.centerLeft,
+                textAlign: TextAlign.start,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: value >= 0 ? Colors.teal : Colors.red,
@@ -265,9 +382,13 @@ class _TransactionTile extends StatelessWidget {
             size: 20,
           ),
         ),
-        title: Text(transaction.description),
+        title: Text(
+          transaction.description,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         subtitle: Text(
-          '${transaction.type} • ${_formatDate(transaction.date)}',
+          '${transaction.type} • ${AppLayout.stamp(transaction.date)}',
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
         trailing: Text(
@@ -279,9 +400,5 @@ class _TransactionTile extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime d) {
-    return '${d.day}/${d.month}/${d.year}';
   }
 }

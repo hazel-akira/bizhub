@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureBusinessAccess;
+use App\Http\Middleware\EnsurePermission;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
         $middleware->alias([
             'business' => EnsureBusinessAccess::class,
+            'permission' => EnsurePermission::class,
         ]);
 
         // Safaricom posts to the STK callback with no CSRF token.

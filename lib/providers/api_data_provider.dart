@@ -29,9 +29,10 @@ final apiTodaySalesProvider = FutureProvider<List<ApiSale>>((ref) async {
   final sales = await ref.watch(apiSalesProvider.future);
   final today = DateTime.now();
   return sales.where((s) {
-    return s.saleDate.year == today.year &&
-        s.saleDate.month == today.month &&
-        s.saleDate.day == today.day;
+    final d = s.saleDate.toLocal();
+    return d.year == today.year &&
+        d.month == today.month &&
+        d.day == today.day;
   }).toList();
 });
 
@@ -92,6 +93,7 @@ final createApiSaleProvider = Provider<
     ref.invalidate(apiSalesProvider);
     ref.invalidate(apiDashboardProvider);
     ref.invalidate(apiTodaySalesProvider);
+    ref.invalidate(cloudCustomerBalancesProvider);
     return sale;
   };
 });
@@ -114,10 +116,14 @@ final createApiSaleWithItemsProvider = Provider<
     Future<ApiSale> Function({
   required List<({int productId, int quantity})> items,
   required String paymentMethod,
+  int? customerId,
+  double? unitPrice,
 })>((ref) {
   return ({
     required List<({int productId, int quantity})> items,
     required String paymentMethod,
+    int? customerId,
+    double? unitPrice,
   }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
@@ -125,12 +131,15 @@ final createApiSaleWithItemsProvider = Provider<
     final sale = await api.createSaleWithItems(
       items: items,
       paymentMethod: paymentMethod,
+      customerId: customerId,
+      unitPrice: unitPrice,
     );
 
     ref.invalidate(apiSalesProvider);
     ref.invalidate(apiDashboardProvider);
     ref.invalidate(apiTodaySalesProvider);
     ref.invalidate(apiProductsProvider);
+    ref.invalidate(cloudCustomerBalancesProvider);
     return sale;
   };
 });
@@ -139,11 +148,13 @@ final createApiProductProvider = Provider<
     Future<ApiProduct> Function({
   required String name,
   required double sellingPrice,
+  required double costPrice,
   int stockQuantity,
 })>((ref) {
   return ({
     required String name,
     required double sellingPrice,
+    required double costPrice,
     int stockQuantity = 0,
   }) async {
     final api = ref.read(businessApiProvider);
@@ -152,6 +163,7 @@ final createApiProductProvider = Provider<
     final product = await api.createCustomProduct(
       name: name,
       sellingPrice: sellingPrice,
+      costPrice: costPrice,
       stockQuantity: stockQuantity,
     );
 
@@ -165,14 +177,14 @@ final addProductFromGlobalProvider = Provider<
     Future<ApiProduct> Function({
   required int globalProductId,
   required double sellingPrice,
+  required double costPrice,
   int stockQuantity,
-  double? costPrice,
 })>((ref) {
   return ({
     required int globalProductId,
     required double sellingPrice,
+    required double costPrice,
     int stockQuantity = 0,
-    double? costPrice,
   }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
@@ -249,15 +261,17 @@ final uploadProductImageProvider = Provider<
 final updateApiProductProvider = Provider<
     Future<ApiProduct> Function({
   required int productId,
-  String? name,
-  double? sellingPrice,
-  int? stockQuantity,
-  bool? isActive,
-})>((ref) {
+    String? name,
+    double? sellingPrice,
+    double? costPrice,
+    int? stockQuantity,
+    bool? isActive,
+  })>((ref) {
   return ({
     required int productId,
     String? name,
     double? sellingPrice,
+    double? costPrice,
     int? stockQuantity,
     bool? isActive,
   }) async {
@@ -268,6 +282,7 @@ final updateApiProductProvider = Provider<
       productId: productId,
       name: name,
       sellingPrice: sellingPrice,
+      costPrice: costPrice,
       stockQuantity: stockQuantity,
       isActive: isActive,
     );

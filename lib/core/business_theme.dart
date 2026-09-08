@@ -59,16 +59,21 @@ class BusinessThemePalette {
         centerTitle: false,
       ),
       navigationBarTheme: NavigationBarThemeData(
+        height: 68,
         indicatorColor: primary.withValues(alpha: 0.15),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          const overflow = TextStyle(
+            fontSize: 11,
+            height: 1.1,
+            overflow: TextOverflow.ellipsis,
+          );
           if (states.contains(WidgetState.selected)) {
-            return TextStyle(
-              fontSize: 12,
+            return overflow.copyWith(
               fontWeight: FontWeight.w700,
               color: primary,
             );
           }
-          return const TextStyle(fontSize: 12);
+          return overflow;
         }),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
@@ -130,7 +135,7 @@ class BusinessThemePalette {
     ),
     'grocery_shop': BusinessThemePalette(
       id: 'grocery_shop',
-      label: 'Grocery Shop',
+      label: 'Kiosk / General Shop',
       primary: Color(0xFF2E7D32),
       secondary: Color(0xFFFFFFFF),
       accent: Color(0xFFFF9800),
@@ -169,6 +174,76 @@ class BusinessThemePalette {
       primary: Color(0xFF0D47A1),
       secondary: Color(0xFF00BCD4),
       accent: Color(0xFFFFFFFF),
+    ),
+    'butchery': BusinessThemePalette(
+      id: 'butchery',
+      label: 'Butchery',
+      primary: Color(0xFF6D4C41),
+      secondary: Color(0xFF8D6E63),
+      accent: Color(0xFFEF5350),
+    ),
+    'mama_mboga': BusinessThemePalette(
+      id: 'mama_mboga',
+      label: 'Mama Mboga',
+      primary: Color(0xFF2E7D32),
+      secondary: Color(0xFF81C784),
+      accent: Color(0xFFFFEB3B),
+    ),
+    'dairy_shop': BusinessThemePalette(
+      id: 'dairy_shop',
+      label: 'Dairy',
+      primary: Color(0xFF0277BD),
+      secondary: Color(0xFFB3E5FC),
+      accent: Color(0xFFFFC107),
+    ),
+    'poultry_shop': BusinessThemePalette(
+      id: 'poultry_shop',
+      label: 'Poultry',
+      primary: Color(0xFFEF6C00),
+      secondary: Color(0xFFFFCC80),
+      accent: Color(0xFF6D4C41),
+    ),
+    'wholesale': BusinessThemePalette(
+      id: 'wholesale',
+      label: 'Wholesale',
+      primary: Color(0xFF37474F),
+      secondary: Color(0xFF90A4AE),
+      accent: Color(0xFFFF9800),
+    ),
+    'liquor_store': BusinessThemePalette(
+      id: 'liquor_store',
+      label: 'Wines & Spirits',
+      primary: Color(0xFF4A148C),
+      secondary: Color(0xFFCE93D8),
+      accent: Color(0xFFFFD54F),
+    ),
+    'gas_water': BusinessThemePalette(
+      id: 'gas_water',
+      label: 'Gas & Water',
+      primary: Color(0xFF00695C),
+      secondary: Color(0xFF4DB6AC),
+      accent: Color(0xFFFF7043),
+    ),
+    'shoe_store': BusinessThemePalette(
+      id: 'shoe_store',
+      label: 'Shoes',
+      primary: Color(0xFF5D4037),
+      secondary: Color(0xFFD7CCC8),
+      accent: Color(0xFF1565C0),
+    ),
+    'salon': BusinessThemePalette(
+      id: 'salon',
+      label: 'Salon / Kinyozi',
+      primary: Color(0xFFAD1457),
+      secondary: Color(0xFFF48FB1),
+      accent: Color(0xFF212121),
+    ),
+    'agrovet': BusinessThemePalette(
+      id: 'agrovet',
+      label: 'Agrovet',
+      primary: Color(0xFF558B2F),
+      secondary: Color(0xFFAED581),
+      accent: Color(0xFF6D4C41),
     ),
   };
 }

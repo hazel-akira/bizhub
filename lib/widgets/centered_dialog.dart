@@ -78,6 +78,8 @@ class CenteredDialogFrame extends StatelessWidget {
                     children: [
                       Text(
                         title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: palette.onPrimary,
                           fontWeight: FontWeight.w800,
@@ -88,6 +90,8 @@ class CenteredDialogFrame extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           subtitle!,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: palette.onPrimary.withValues(alpha: 0.85),
                             fontSize: 13,
@@ -113,8 +117,10 @@ class CenteredDialogFrame extends StatelessWidget {
           if (actions != null && actions!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              child: OverflowBar(
+                alignment: MainAxisAlignment.end,
+                spacing: 8,
+                overflowSpacing: 8,
                 children: actions!,
               ),
             ),

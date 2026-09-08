@@ -9,6 +9,12 @@ class ApiDashboard {
     this.topProductToday,
     this.lowStockCount = 0,
     this.pendingCredit = 0,
+    this.todayCogs = 0,
+    this.todayGrossProfit = 0,
+    this.todayOperatingProfit = 0,
+    this.todayNetProfit = 0,
+    this.todayGrossMargin = 0,
+    this.todayNetMargin = 0,
   });
 
   final double todaySales;
@@ -20,18 +26,30 @@ class ApiDashboard {
   final String? topProductToday;
   final int lowStockCount;
   final double pendingCredit;
+  final double todayCogs;
+  final double todayGrossProfit;
+  final double todayOperatingProfit;
+  final double todayNetProfit;
+  final double todayGrossMargin;
+  final double todayNetMargin;
 
   factory ApiDashboard.fromJson(Map<String, dynamic> json) {
     return ApiDashboard(
       todaySales: _toDouble(json['today_sales']),
       todayExpenses: _toDouble(json['today_expenses']),
-      todayProfit: _toDouble(json['today_profit']),
+      todayProfit: _toDouble(json['today_profit'] ?? json['today_net_profit']),
       productsCount: json['products_count'] as int? ?? 0,
       salesCount: json['sales_count'] as int? ?? 0,
       todayUnitsSold: json['today_units_sold'] as int? ?? 0,
       topProductToday: json['top_product_today'] as String?,
       lowStockCount: json['low_stock_count'] as int? ?? 0,
       pendingCredit: _toDouble(json['pending_credit']),
+      todayCogs: _toDouble(json['today_cogs']),
+      todayGrossProfit: _toDouble(json['today_gross_profit']),
+      todayOperatingProfit: _toDouble(json['today_operating_profit']),
+      todayNetProfit: _toDouble(json['today_net_profit'] ?? json['today_profit']),
+      todayGrossMargin: _toDouble(json['today_gross_margin']),
+      todayNetMargin: _toDouble(json['today_net_margin']),
     );
   }
 

@@ -101,7 +101,7 @@ class ProductController extends Controller
             'name' => $global->name,
             'description' => $global->description,
             'barcode' => $validated['barcode'] ?? $global->barcode,
-            'cost_price' => $validated['cost_price'] ?? 0,
+            'cost_price' => $validated['cost_price'],
             'selling_price' => $validated['selling_price'],
             'stock_quantity' => $validated['stock_quantity'] ?? 0,
             'reorder_level' => $validated['reorder_level'] ?? 5,
@@ -134,7 +134,22 @@ class ProductController extends Controller
     public function update(UpdateProductRequest $request, Product $product): JsonResponse
     {
         $this->authorizeProduct($request, $product);
-        $product->update($request->validated());
+        $user = $request->user();
+        if (! $user->hasPermission('manage_stock')
+            && ! $user->hasPermission('add_product')
+            && ! $user->hasPermission('edit_price')) {
+            return $this->error('You do not have permission to do that.', 403);
+        }
+
+        $data = $request->validated();
+        if (! $user->hasPermission('edit_price')) {
+            unset($data['selling_price'], $data['cost_price']);
+        }
+        if (! $user->hasPermission('manage_stock')) {
+            unset($data['stock_quantity']);
+        }
+
+        $product->update($data);
 
         return $this->success($this->format($product->fresh(['category', 'globalProduct'])));
     }
@@ -178,6 +193,11 @@ class ProductController extends Controller
     private function format(Product $product, ?ProductImageService $images = null): array
     {
         $images ??= app(ProductImageService::class);
+        $user = request()->user();
+        $canSeeCost = $user
+            && ($user->hasPermission('view_profit')
+                || $user->hasPermission('edit_price')
+                || $user->hasPermission('manage_stock'));
 
         return [
             'id' => $product->id,
@@ -186,7 +206,7 @@ class ProductController extends Controller
             'name' => $product->name,
             'description' => $product->description,
             'category_id' => $product->category_id,
-            'cost_price' => $product->cost_price,
+            'cost_price' => $canSeeCost ? $product->cost_price : null,
             'selling_price' => $product->selling_price,
             'price' => (int) $product->selling_price,
             'stock_quantity' => $product->stock_quantity,
@@ -201,6 +221,8 @@ class ProductController extends Controller
                 'category_name' => $product->globalProduct->category?->name,
             ] : null,
             'image_path' => $images->publicUrl($product->image_path),
+            'created_at' => $product->created_at?->toIso8601String(),
+            'updated_at' => $product->updated_at?->toIso8601String(),
         ];
     }
 }

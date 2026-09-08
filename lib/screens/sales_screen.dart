@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/layout.dart';
 import '../database/app_database.dart';
 import '../models/api_sale.dart';
 import '../providers/api_data_provider.dart';
@@ -10,7 +11,6 @@ import '../providers/dashboard_provider.dart';
 import '../providers/payments_provider.dart';
 import '../providers/sales_provider.dart';
 import '../providers/unpaid_customers_provider.dart';
-import '../widgets/sales/food_quick_sale_panel.dart';
 import '../widgets/sales/generic_quick_sale_panel.dart';
 import 'inventory_screen.dart';
 
@@ -25,6 +25,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   void _refreshSalesUI() {
     ref.invalidate(todayStatsProvider);
     ref.invalidate(unpaidCustomersDebtProvider);
+    ref.invalidate(unpaidSalesWithOutstandingProvider);
+    ref.invalidate(cloudCustomerBalancesProvider);
     ref.invalidate(apiSalesProvider);
     ref.invalidate(apiTodaySalesProvider);
     ref.invalidate(apiDashboardProvider);
@@ -39,14 +41,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   void _openInventory() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const InventoryScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const InventoryScreen()));
   }
 
   Future<void> _recordPaymentDialog(SaleListItem item) async {
-    final amountCtrl =
-        TextEditingController(text: item.sale.totalAmount.toStringAsFixed(0));
+    final amountCtrl = TextEditingController(
+      text: item.sale.totalAmount.toStringAsFixed(0),
+    );
     String method = 'cash';
     final ok = await showDialog<bool>(
       context: context,
@@ -58,8 +61,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
             children: [
               TextFormField(
                 controller: amountCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Payment amount',
                   prefixText: 'KES ',
@@ -109,8 +113,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   Future<void> _recordApiPaymentDialog(ApiSale sale) async {
-    final amountCtrl =
-        TextEditingController(text: sale.outstanding.toStringAsFixed(0));
+    final amountCtrl = TextEditingController(
+      text: sale.outstanding.toStringAsFixed(0),
+    );
     String method = 'cash';
     final ok = await showDialog<bool>(
       context: context,
@@ -120,14 +125,13 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Outstanding: KES ${sale.outstanding.toStringAsFixed(0)}',
-              ),
+              Text('Outstanding: KES ${sale.outstanding.toStringAsFixed(0)}'),
               const SizedBox(height: 12),
               TextFormField(
                 controller: amountCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Payment amount',
                   prefixText: 'KES ',
@@ -182,9 +186,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   Widget _apiSaleTile(ApiSale sale) {
-    final unpaid = !sale.isPaid && sale.outstanding > 0;
-    final time =
-        '${sale.saleDate.hour.toString().padLeft(2, '0')}:${sale.saleDate.minute.toString().padLeft(2, '0')}';
+    final unpaid = sale.isUnpaid;
+    final stamp = AppLayout.stamp(sale.saleDate);
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
@@ -213,37 +216,44 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 'Due: KES ${sale.outstanding.toStringAsFixed(0)}',
                 style: TextStyle(color: Colors.orange.shade800, fontSize: 12),
               ),
+            ] else if (!unpaid) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Paid with ${sale.methodLabel}',
+                style: TextStyle(color: Colors.green.shade800, fontSize: 12),
+              ),
             ],
             const SizedBox(height: 4),
             Text(
-              'Time: $time',
+              stamp,
               style: TextStyle(color: Colors.grey[700], fontSize: 12),
             ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              alignment: WrapAlignment.spaceBetween,
               children: [
                 Chip(
-                  label: Text(unpaid ? 'UNPAID' : 'PAID'),
+                  label: Text(sale.statusLabel),
                   backgroundColor: unpaid
                       ? const Color(0xFFFFEBEE)
                       : const Color(0xFFE8F5E9),
                   labelStyle: TextStyle(
-                    color: unpaid
-                        ? Colors.red.shade800
-                        : Colors.green.shade800,
+                    color: unpaid ? Colors.red.shade800 : Colors.green.shade800,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const Spacer(),
+  
                 if (unpaid) ...[
                   OutlinedButton(
                     onPressed: () => _recordApiPaymentDialog(sale),
-                    child: const Text('Record Payment'),
+                    child: const Text('Record payment'),
                   ),
-                  const SizedBox(width: 8),
                   FilledButton(
                     onPressed: () => _markApiPaidQuick(sale),
-                    child: const Text('Mark as Paid'),
+                    child: const Text('Mark paid'),
                   ),
                 ],
               ],
@@ -259,6 +269,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final useCloud = ref.watch(useCloudDataProvider);
     final isFood = ref.watch(isFoodBusinessProvider);
     final typeLabel = ref.watch(businessTypeLabelProvider);
+    final catalogHint = ref.watch(businessTypeConfigProvider).emptyCatalogHint;
     final todaySalesItemsAsync = useCloud
         ? ref.watch(apiTodaySalesProvider)
         : ref.watch(todaySalesListItemsProvider);
@@ -268,7 +279,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         title: const Text('Sales'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
         actions: [
-          if (!isFood && useCloud)
+          if (useCloud)
             IconButton(
               onPressed: _openInventory,
               icon: const Icon(Icons.inventory_2_outlined),
@@ -309,19 +320,17 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       visualDensity: VisualDensity.compact,
                     ),
                   ),
-                if (isFood)
-                  FoodQuickSalePanel(onSaleRecorded: _refreshSalesUI)
-                else
-                  GenericQuickSalePanel(
-                    onSaleRecorded: _refreshSalesUI,
-                    onManageInventory: _openInventory,
-                  ),
+                GenericQuickSalePanel(
+                  onSaleRecorded: _refreshSalesUI,
+                  onManageInventory: useCloud ? _openInventory : null,
+                  emptyCatalogHint: catalogHint,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'Recent sales',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 if (useCloud) ...[
@@ -375,11 +384,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 }
 
 class _SaleCard extends StatelessWidget {
-  const _SaleCard({
-    required this.item,
-    this.onRecordPayment,
-    this.onMarkPaid,
-  });
+  const _SaleCard({required this.item, this.onRecordPayment, this.onMarkPaid});
 
   final SaleListItem item;
   final VoidCallback? onRecordPayment;
@@ -426,8 +431,9 @@ class _SaleCard extends StatelessWidget {
                       ? const Color(0xFFE8F5E9)
                       : const Color(0xFFFFEBEE),
                   labelStyle: TextStyle(
-                    color:
-                        sale.isPaid ? Colors.green.shade800 : Colors.red.shade800,
+                    color: sale.isPaid
+                        ? Colors.green.shade800
+                        : Colors.red.shade800,
                     fontWeight: FontWeight.w700,
                   ),
                 ),

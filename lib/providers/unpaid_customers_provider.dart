@@ -98,7 +98,7 @@ Future<List<UnpaidSaleRow>> _loadCloudUnpaidSales(Ref ref) async {
 
   final sales = await api.getUnpaidSales();
   return sales
-      .where((sale) => sale.outstanding > 0)
+      .where((sale) => sale.isUnpaid)
       .map(
         (sale) => UnpaidSaleRow(
           saleId: sale.id,
@@ -158,35 +158,44 @@ final addUnpaidSaleProvider = Provider<
       required int quantity,
       required double totalAmount,
       int? customerId,
+      int? productId,
     })>((ref) {
   return ({
     required String customerName,
     required int quantity,
     required double totalAmount,
     int? customerId,
+    int? productId,
   }) async {
     if (quantity <= 0 || totalAmount <= 0) return;
 
     final api = ref.read(businessApiProvider);
     if (api != null) {
-      final products = await api.ensureDefaultProducts();
-      final meat = products['meat'];
-      final ndengu = products['ndengu'];
-      final product = meat ?? ndengu;
+      if (customerId == null) {
+        throw Exception('Select a customer for unpaid sales');
+      }
+      final products = await api.getProducts();
+      final priced = products.where((p) => p.isActive && p.sellingPrice > 0);
+      final product = productId != null
+          ? products.where((p) => p.id == productId).firstOrNull
+          : priced.firstOrNull;
       if (product == null) {
-        throw Exception('Add products in Inventory before recording unpaid sales');
+        throw Exception('Add products in Inventory and set their prices first');
       }
 
+      final unitPrice = totalAmount / quantity;
       await api.createSaleWithItems(
         items: [(productId: product.id, quantity: quantity)],
         paymentMethod: 'credit',
         customerId: customerId,
+        unitPrice: unitPrice,
       );
       ref.invalidate(apiSalesProvider);
       ref.invalidate(apiDashboardProvider);
       ref.invalidate(apiTodaySalesProvider);
       ref.invalidate(unpaidCustomersDebtProvider);
       ref.invalidate(unpaidSalesWithOutstandingProvider);
+      ref.invalidate(cloudCustomerBalancesProvider);
       return;
     }
 

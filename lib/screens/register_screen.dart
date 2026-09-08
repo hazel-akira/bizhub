@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../services/business_type_service.dart';
 import '../services/google_auth_service.dart';
 import '../widgets/api_connection_card.dart';
+import '../widgets/business_category_dropdown.dart';
 import '../widgets/google_sign_in_button.dart';
 import '../widgets/google_sign_in_setup_dialog.dart';
 
@@ -244,39 +245,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                   )
                 else
-                  DropdownButtonFormField<String>(
-                    key: ValueKey(_selectedBusinessType),
-                    initialValue: _selectedBusinessType,
-                    decoration: const InputDecoration(
-                      labelText: 'Business category',
-                      prefixIcon: Icon(Icons.category_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                    hint: const Text('Choose your business type'),
-                    items: _businessTypes
-                        .map(
-                          (type) => DropdownMenuItem(
-                            value: type.id,
-                            child: Text(type.label),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _selectedBusinessType = value),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Required' : null,
-                  ),
-                if (_selectedBusinessType != null && _businessTypes.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      _businessTypes
-                          .firstWhere((t) => t.id == _selectedBusinessType)
-                          .description,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
+                  FormField<String>(
+                    validator: (v) => _selectedBusinessType == null
+                        ? 'Required'
+                        : null,
+                    builder: (state) {
+                      return BusinessCategoryDropdown(
+                        types: BusinessTypeOption.sorted(_businessTypes),
+                        value: _selectedBusinessType,
+                        errorText: state.errorText,
+                        onChanged: (id) {
+                          setState(() => _selectedBusinessType = id);
+                          state.didChange(id);
+                        },
+                      );
+                    },
                   ),
                 const SizedBox(height: 16),
                 TextFormField(

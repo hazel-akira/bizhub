@@ -26,7 +26,7 @@ class GoogleSignInButton extends StatelessWidget {
               width: 22,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : Row(
+                          : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
@@ -48,9 +48,13 @@ class GoogleSignInButton extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
