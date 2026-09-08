@@ -1,0 +1,14 @@
+{
+    "db": "pgsql",
+    "database": "AkiraSaaS",
+    "catalog_path": "\/home\/eng-susan\/bizhub\/services\/api\/database\/data\/global_product_catalog.php",
+    "food_in_file": 43,
+    "ndengu_in_db": false,
+    "global_product_count": 150,
+    "food_category_id": 1,
+    "samosas": [
+        "Beef Samosa",
+        "Chicken Samosa",
+        "Vegetable Samosa"
+    ]
+}
