@@ -14,8 +14,7 @@ String get defaultApiBaseUrl {
   }
 
   if (kReleaseMode) {
-    // Production builds should pass API_BASE_URL via --dart-define.
-    return 'https://api.akirabites.shop';
+    return 'https://akira-flow-api.onrender.com';
   }
 
   if (kIsWeb) {

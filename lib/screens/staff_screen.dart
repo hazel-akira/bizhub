@@ -8,8 +8,7 @@ import '../providers/business_api_provider.dart';
 
 String _staffApiError(Object e) {
   final raw = e.toString().replaceFirst('ApiException: ', '');
-  if (raw.toLowerCase().contains('could not be found') ||
-      raw.contains('404')) {
+  if (raw.toLowerCase().contains('could not be found') || raw.contains('404')) {
     return 'Staff roles are not on the live server yet. '
         'Ask an admin to deploy the API, then try again.';
   }
@@ -73,10 +72,7 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _StaffEditorSheet(
-        existing: existing,
-        roles: _roles,
-      ),
+      builder: (_) => _StaffEditorSheet(existing: existing, roles: _roles),
     );
     if (saved == true) {
       await _reload();
@@ -109,9 +105,9 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
       await _reload();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_staffApiError(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_staffApiError(e))));
     }
   }
 
@@ -140,7 +136,7 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             const Text(
-              'A person can have more than one role. Cashier cannot also be admin — admin already has full access.',
+              'A person can have more than one role. Cashier cannot also be admin -> admin already has full access.',
             ),
             const SizedBox(height: 16),
             if (_loading) const LinearProgressIndicator(),
@@ -157,7 +153,9 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
                 child: ListTile(
                   leading: CircleAvatar(
                     child: Text(
-                      member.name.isNotEmpty ? member.name[0].toUpperCase() : '?',
+                      member.name.isNotEmpty
+                          ? member.name[0].toUpperCase()
+                          : '?',
                     ),
                   ),
                   title: Text(member.name),
@@ -175,7 +173,10 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
                       if (value == 'deactivate') _deactivate(member);
                     },
                     itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'edit', child: Text('Edit roles')),
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Edit roles'),
+                      ),
                       if (member.isActive)
                         const PopupMenuItem(
                           value: 'deactivate',
@@ -194,10 +195,7 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
 }
 
 class _StaffEditorSheet extends ConsumerStatefulWidget {
-  const _StaffEditorSheet({
-    required this.roles,
-    this.existing,
-  });
+  const _StaffEditorSheet({required this.roles, this.existing});
 
   final AuthUser? existing;
   final List<StaffRoleInfo> roles;
@@ -313,9 +311,9 @@ class _StaffEditorSheetState extends ConsumerState<_StaffEditorSheet> {
             children: [
               Text(
                 widget.existing == null ? 'Add staff' : 'Edit staff',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -330,8 +328,9 @@ class _StaffEditorSheetState extends ConsumerState<_StaffEditorSheet> {
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(labelText: 'Email'),
-                validator: (v) =>
-                    v == null || !v.contains('@') ? 'Enter a valid email' : null,
+                validator: (v) => v == null || !v.contains('@')
+                    ? 'Enter a valid email'
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -355,9 +354,9 @@ class _StaffEditorSheetState extends ConsumerState<_StaffEditorSheet> {
               const SizedBox(height: 16),
               Text(
                 'Roles',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
               for (final role in widget.roles)
@@ -373,7 +372,9 @@ class _StaffEditorSheetState extends ConsumerState<_StaffEditorSheet> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     _error!,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
               FilledButton(

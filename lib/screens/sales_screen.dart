@@ -69,16 +69,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   prefixText: 'KES ',
                 ),
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: method,
-                decoration: const InputDecoration(labelText: 'Payment method'),
-                items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                  DropdownMenuItem(value: 'mpesa', child: Text('MPESA')),
+              const SizedBox(height: 16),
+              Text('Method', style: Theme.of(ctx).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: 'cash', label: Text('Cash')),
+                  ButtonSegment(value: 'mpesa', label: Text('M-Pesa')),
                 ],
-                onChanged: (v) {
-                  if (v != null) setLocal(() => method = v);
+                selected: {method},
+                onSelectionChanged: (selected) {
+                  if (selected.isEmpty) return;
+                  setLocal(() => method = selected.first);
                 },
               ),
             ],
@@ -99,12 +102,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     if (ok != true) return;
     final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
     if (amount <= 0) return;
-    await ref.read(addPaymentProvider)(
-      saleId: item.sale.id,
-      amount: amount,
-      method: method,
-    );
-    _refreshSalesUI();
+    try {
+      await ref.read(addPaymentProvider)(
+        saleId: item.sale.id,
+        amount: amount,
+        method: method,
+      );
+      _refreshSalesUI();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
   }
 
   Future<void> _markPaidQuick(int saleId) async {
@@ -137,16 +147,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   prefixText: 'KES ',
                 ),
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: method,
-                decoration: const InputDecoration(labelText: 'Payment method'),
-                items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                  DropdownMenuItem(value: 'mpesa', child: Text('MPESA')),
+              const SizedBox(height: 16),
+              Text('Method', style: Theme.of(ctx).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: 'cash', label: Text('Cash')),
+                  ButtonSegment(value: 'mpesa', label: Text('M-Pesa')),
                 ],
-                onChanged: (v) {
-                  if (v != null) setLocal(() => method = v);
+                selected: {method},
+                onSelectionChanged: (selected) {
+                  if (selected.isEmpty) return;
+                  setLocal(() => method = selected.first);
                 },
               ),
             ],
@@ -167,12 +180,19 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     if (ok != true) return;
     final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
     if (amount <= 0) return;
-    await ref.read(recordSalePaymentProvider)(
-      saleId: sale.id,
-      amount: amount,
-      method: method,
-    );
-    _refreshSalesUI();
+    try {
+      await ref.read(recordSalePaymentProvider)(
+        saleId: sale.id,
+        amount: amount,
+        method: method,
+      );
+      _refreshSalesUI();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
   }
 
   Future<void> _markApiPaidQuick(ApiSale sale) async {

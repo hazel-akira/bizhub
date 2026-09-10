@@ -18,127 +18,87 @@ class UnpaidCustomersScreen extends ConsumerStatefulWidget {
 }
 
 class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
-  Future<void> _markAsPaid(UnpaidCustomerDebtRow row) async {
-    if (row.unpaidSales.isEmpty) return;
+  bool _busy = false;
 
-    for (final sale in row.unpaidSales) {
-      if (sale.outstanding <= 0) continue;
-      await ref.read(recordSalePaymentProvider)(
-        saleId: sale.saleId,
-        amount: sale.outstanding,
-        method: 'cash',
-      );
+  String _paymentError(Object e) {
+    final raw = e.toString().replaceFirst('ApiException: ', '');
+    if (raw.toLowerCase().contains('timed out')) {
+      return 'Could not reach the server. Check your connection and try again.';
     }
+    return raw;
+  }
 
-    _refreshUI();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Customer marked as paid')),
-    );
+  Future<void> _markAsPaid(UnpaidCustomerDebtRow row) async {
+    if (row.unpaidSales.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    try {
+      for (final sale in row.unpaidSales) {
+        if (sale.outstanding <= 0) continue;
+        await ref.read(recordSalePaymentProvider)(
+          saleId: sale.saleId,
+          amount: sale.outstanding,
+          method: 'cash',
+        );
+      }
+      _refreshUI();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Customer marked as paid')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_paymentError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _recordPartialPayment(UnpaidCustomerDebtRow row) async {
-    final amountController = TextEditingController();
-    String method = 'cash';
+    if (_busy) return;
 
-    final ok = await showDialog<bool>(
+    final result = await showDialog<(double, String)?>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) {
-          return AlertDialog(
-            title: const Text('Partial payment'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${row.customerName}\nOutstanding: KES ${row.outstanding.toStringAsFixed(0)}',
-                    style: Theme.of(ctx).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: amountController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Payment amount (KES)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: method,
-                    decoration: const InputDecoration(labelText: 'Method'),
-                    items: const [
-                      DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                      DropdownMenuItem(value: 'mpesa', child: Text('MPESA')),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setLocal(() => method = value);
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final amount = double.tryParse(
-                    amountController.text.trim(),
-                  );
-                  if (amount == null || amount <= 0) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Enter amount')),
-                    );
-                    return;
-                  }
-                  if (amount > row.outstanding) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Amount exceeds outstanding')),
-                    );
-                    return;
-                  }
-                  Navigator.pop(ctx, true);
-                },
-                child: const Text('Confirm'),
-              ),
-            ],
-          );
-        },
+      builder: (ctx) => _PartialPaymentDialog(
+        customerName: row.customerName,
+        outstanding: row.outstanding,
       ),
     );
+    if (result == null || !mounted) return;
 
-    if (ok != true) {
-      amountController.dispose();
-      return;
-    }
-
-    final amount = double.tryParse(amountController.text.trim()) ?? 0;
-    amountController.dispose();
+    final amount = result.$1;
+    final method = result.$2;
     if (amount <= 0) return;
 
-    var remaining = amount;
-    for (final sale in row.unpaidSales) {
-      if (remaining <= 0) break;
-      final pay = sale.outstanding < remaining ? sale.outstanding : remaining;
-      if (pay <= 0) continue;
-      await ref.read(recordSalePaymentProvider)(
-        saleId: sale.saleId,
-        amount: pay,
-        method: method,
+    setState(() => _busy = true);
+    try {
+      var remaining = amount;
+      for (final sale in row.unpaidSales) {
+        if (remaining <= 0) break;
+        final pay =
+            sale.outstanding < remaining ? sale.outstanding : remaining;
+        if (pay <= 0) continue;
+        await ref.read(recordSalePaymentProvider)(
+          saleId: sale.saleId,
+          amount: pay,
+          method: method,
+        );
+        remaining -= pay;
+      }
+      _refreshUI();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment recorded')),
       );
-      remaining -= pay;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_paymentError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-
-    _refreshUI();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Payment recorded')),
-    );
   }
 
   void _refreshUI() {
@@ -161,6 +121,12 @@ class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
       appBar: AppBar(
         title: const Text('Unpaid Customers'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        bottom: _busy
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(2),
+                child: LinearProgressIndicator(),
+              )
+            : null,
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -240,7 +206,9 @@ class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
                             AdaptiveButtonRow(
                               children: [
                                 FilledButton(
-                                  onPressed: () => _markAsPaid(row),
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _markAsPaid(row),
                                   child: const Text(
                                     'Mark paid',
                                     maxLines: 1,
@@ -248,10 +216,11 @@ class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
                                   ),
                                 ),
                                 OutlinedButton(
-                                  onPressed: () =>
-                                      _recordPartialPayment(row),
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _recordPartialPayment(row),
                                   child: const Text(
-                                    'Partial',
+                                    'Pay partially',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -272,4 +241,112 @@ class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
   }
 
   String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
+}
+
+class _PartialPaymentDialog extends StatefulWidget {
+  const _PartialPaymentDialog({
+    required this.customerName,
+    required this.outstanding,
+  });
+
+  final String customerName;
+  final double outstanding;
+
+  @override
+  State<_PartialPaymentDialog> createState() => _PartialPaymentDialogState();
+}
+
+class _PartialPaymentDialogState extends State<_PartialPaymentDialog> {
+  late final TextEditingController _amount;
+  String _method = 'cash';
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _amount = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    super.dispose();
+  }
+
+  void _confirm() {
+    final amount = double.tryParse(_amount.text.trim());
+    if (amount == null || amount <= 0) {
+      setState(() => _error = 'Enter amount');
+      return;
+    }
+    if (amount > widget.outstanding) {
+      setState(() => _error = 'Amount exceeds outstanding');
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    Navigator.pop(context, (amount, _method));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Pay partially'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${widget.customerName}\nOutstanding: KES ${widget.outstanding.toStringAsFixed(0)}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amount,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Payment amount (KES)',
+                errorText: _error,
+              ),
+              onSubmitted: (_) => _confirm(),
+            ),
+            const SizedBox(height: 16),
+            Text('Method', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Cash'),
+                  selected: _method == 'cash',
+                  onSelected: (_) => setState(() => _method = 'cash'),
+                ),
+                ChoiceChip(
+                  label: const Text('M-Pesa'),
+                  selected: _method == 'mpesa',
+                  onSelected: (_) => setState(() => _method = 'mpesa'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            FocusScope.of(context).unfocus();
+            Navigator.pop(context);
+          },
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _confirm,
+          child: const Text('Confirm'),
+        ),
+      ],
+    );
+  }
 }

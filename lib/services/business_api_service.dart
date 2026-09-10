@@ -148,6 +148,7 @@ class BusinessApiService {
       '/api/sales/$saleId/payments',
       auth: true,
       body: {'amount': amount, 'payment_method': paymentMethod},
+      timeout: const Duration(seconds: 30),
     );
     return ApiSale.fromJson(json['data'] as Map<String, dynamic>);
   }
