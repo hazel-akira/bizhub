@@ -5,6 +5,7 @@ import '../core/staff_access.dart';
 import '../models/auth_user.dart';
 import '../providers/auth_provider.dart';
 import '../providers/business_api_provider.dart';
+import '../widgets/access_denied_page.dart';
 
 String _staffApiError(Object e) {
   final raw = e.toString().replaceFirst('ApiException: ', '');
@@ -124,6 +125,11 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenStaff) {
+      return const AccessDeniedPage(title: 'Staff & roles');
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Staff & roles'),

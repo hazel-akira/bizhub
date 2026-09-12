@@ -28,10 +28,10 @@ class AuthService {
     required String password,
   }) async {
     _api.clearBaseUrlCache();
-    final json = await _api.post('/api/auth/login', body: {
-      'email': email.trim(),
-      'password': password,
-    });
+    final json = await _api.post(
+      '/api/auth/login',
+      body: {'email': email.trim(), 'password': password},
+    );
 
     return _sessionFromResponse(json);
   }
@@ -45,14 +45,17 @@ class AuthService {
     required String businessType,
   }) async {
     _api.clearBaseUrlCache();
-    final json = await _api.post('/api/auth/register', body: {
-      'name': name.trim(),
-      'email': email.trim(),
-      'password': password,
-      'password_confirmation': passwordConfirmation,
-      'business_name': businessName.trim(),
-      'business_type': businessType,
-    });
+    final json = await _api.post(
+      '/api/auth/register',
+      body: {
+        'name': name.trim(),
+        'email': email.trim(),
+        'password': password,
+        'password_confirmation': passwordConfirmation,
+        'business_name': businessName.trim(),
+        'business_type': businessType,
+      },
+    );
 
     return _sessionFromResponse(json);
   }
@@ -77,7 +80,7 @@ class AuthService {
 
     try {
       final json = await _api.post('/api/auth/google', body: body);
-      return _sessionFromResponse(json);
+      return await _sessionFromResponse(json);
     } on ApiException catch (e) {
       final needsRegistration = e.errors?['needs_registration'];
       final isNeedsRegistration = needsRegistration is List
@@ -92,6 +95,55 @@ class AuthService {
       }
       rethrow;
     }
+  }
+
+  Future<String> requestPasswordReset(String email) async {
+    _api.clearBaseUrlCache();
+    try {
+      final json = await _api.post(
+        '/api/auth/forgot-password',
+        body: {'email': email.trim()},
+      );
+      return json['message'] as String? ??
+          'If that email is registered, we sent a 6-digit reset code.';
+    } on ApiException catch (e) {
+      throw _passwordResetApiError(e);
+    }
+  }
+
+  Future<String> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    _api.clearBaseUrlCache();
+    try {
+      final json = await _api.post(
+        '/api/auth/reset-password',
+        body: {
+          'email': email.trim(),
+          'code': code.trim(),
+          'password': password,
+          'password_confirmation': passwordConfirmation,
+        },
+      );
+      return json['message'] as String? ??
+          'Password updated. You can sign in now.';
+    } on ApiException catch (e) {
+      throw _passwordResetApiError(e);
+    }
+  }
+
+  ApiException _passwordResetApiError(ApiException e) {
+    if (e.statusCode == 404) {
+      return ApiException(
+        'Password reset is not on the live server yet. Deploy the API, then try again.',
+        statusCode: e.statusCode,
+        errors: e.errors,
+      );
+    }
+    return e;
   }
 
   Future<AuthUser> fetchMe(String token) async {
