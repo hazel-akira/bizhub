@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/production_provider.dart';
 import '../providers/business_profile_provider.dart';
+import '../widgets/access_denied_page.dart';
 import '../widgets/food_only_screen.dart';
 import '../widgets/offline_only_guard.dart';
 
@@ -62,6 +64,11 @@ class _ProductionScreenState extends ConsumerState<ProductionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenProduction) {
+      return const AccessDeniedPage(title: 'Production');
+    }
+
     final config = ref.watch(businessTypeConfigProvider);
     if (!config.isFoodBusiness) {
       return const FoodOnlyScreen(

@@ -9,6 +9,7 @@ import '../services/google_auth_service.dart';
 import '../widgets/api_connection_card.dart';
 import '../widgets/google_sign_in_button.dart';
 import '../widgets/google_sign_in_setup_dialog.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -35,7 +36,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      await ref.read(authProvider.notifier).login(
+      await ref
+          .read(authProvider.notifier)
+          .login(
             email: _emailController.text,
             password: _passwordController.text,
           );
@@ -48,7 +51,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            ref.read(authProvider).error ?? e.toString().replaceFirst('ApiException: ', ''),
+            ref.read(authProvider).error ??
+                e.toString().replaceFirst('ApiException: ', ''),
           ),
           duration: const Duration(seconds: 5),
         ),
@@ -70,17 +74,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await showGoogleSignInSetupDialog(context);
     } on GoogleAuthNotConfiguredException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } on GoogleRegistrationRequiredException catch (e) {
       if (!mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => RegisterScreen(
-            initialName: e.name,
-            initialEmail: e.email,
-          ),
+          builder: (_) =>
+              RegisterScreen(initialName: e.name, initialEmail: e.email),
         ),
       );
     } catch (e) {
@@ -203,7 +205,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 24),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: auth.isLoading
+                            ? null
+                            : () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => ForgotPasswordScreen(
+                                      initialEmail: _emailController.text.trim(),
+                                    ),
+                                  ),
+                                );
+                              },
+                        child: const Text('Forgot password?'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     FilledButton(
                       onPressed: auth.isLoading ? null : _submit,
                       style: FilledButton.styleFrom(

@@ -11,6 +11,8 @@ import '../providers/dashboard_provider.dart';
 import '../providers/payments_provider.dart';
 import '../providers/sales_provider.dart';
 import '../providers/unpaid_customers_provider.dart';
+import '../providers/auth_provider.dart';
+import '../widgets/access_denied_page.dart';
 import '../widgets/sales/generic_quick_sale_panel.dart';
 import 'inventory_screen.dart';
 
@@ -266,6 +268,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenSales) {
+      return const AccessDeniedPage(title: 'Sales');
+    }
+
     final useCloud = ref.watch(useCloudDataProvider);
     final isFood = ref.watch(isFoodBusinessProvider);
     final typeLabel = ref.watch(businessTypeLabelProvider);
@@ -279,7 +286,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         title: const Text('Sales'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
         actions: [
-          if (useCloud)
+          if (useCloud && access.canOpenInventory)
             IconButton(
               onPressed: _openInventory,
               icon: const Icon(Icons.inventory_2_outlined),
@@ -322,7 +329,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   ),
                 GenericQuickSalePanel(
                   onSaleRecorded: _refreshSalesUI,
-                  onManageInventory: useCloud ? _openInventory : null,
+                  onManageInventory:
+                      useCloud && access.canOpenInventory ? _openInventory : null,
                   emptyCatalogHint: catalogHint,
                 ),
                 const SizedBox(height: 16),

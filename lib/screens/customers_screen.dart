@@ -12,6 +12,7 @@ import '../providers/business_api_provider.dart';
 import '../providers/customers_provider.dart';
 import '../providers/sales_provider.dart';
 import '../providers/unpaid_customers_provider.dart';
+import '../widgets/access_denied_page.dart';
 import 'orders_screen.dart';
 import 'unpaid_customers_screen.dart';
 
@@ -664,6 +665,11 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenCustomers) {
+      return const AccessDeniedPage(title: 'Customers');
+    }
+
     final customersAsync = ref.watch(customersProvider);
     final hasCustomers = customersAsync.maybeWhen(
       data: (customers) => customers.isNotEmpty,

@@ -10,23 +10,36 @@ import '../providers/business_api_provider.dart';
 import '../providers/expenses_provider.dart';
 import '../providers/reports_provider.dart';
 import '../providers/sales_provider.dart';
+import '../providers/auth_provider.dart';
 import '../services/backup_export.dart';
+import '../widgets/access_denied_page.dart';
 
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenReports) {
+      return const AccessDeniedPage(title: 'Reports');
+    }
+
     final useCloud = ref.watch(useCloudDataProvider);
     final now = DateTime.now();
-    final dailyProfit = ref.watch(dailyProfitProvider(now));
-    final weeklyProfit = ref.watch(weeklyProfitProvider(now));
+    final dailyProfit = access.canViewProfit
+        ? ref.watch(dailyProfitProvider(now))
+        : null;
+    final weeklyProfit = access.canViewProfit
+        ? ref.watch(weeklyProfitProvider(now))
+        : null;
     final salesAsync = useCloud
         ? ref.watch(apiSalesProvider)
         : ref.watch(allSalesProvider);
-    final expensesAsync = useCloud
-        ? ref.watch(apiExpensesProvider)
-        : ref.watch(allExpensesProvider);
+    final expensesAsync = access.canManageExpenses
+        ? (useCloud
+            ? ref.watch(apiExpensesProvider)
+            : ref.watch(allExpensesProvider))
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -40,21 +53,28 @@ class ReportsScreen extends ConsumerWidget {
               context,
               ref,
               useCloud: useCloud,
+              includeExpenses: access.canManageExpenses,
             ),
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(dailyProfitProvider(now));
-          ref.invalidate(weeklyProfitProvider(now));
+          if (access.canViewProfit) {
+            ref.invalidate(dailyProfitProvider(now));
+            ref.invalidate(weeklyProfitProvider(now));
+          }
           if (useCloud) {
             ref.invalidate(apiSalesProvider);
-            ref.invalidate(apiExpensesProvider);
+            if (access.canManageExpenses) {
+              ref.invalidate(apiExpensesProvider);
+            }
             ref.invalidate(apiDashboardProvider);
           } else {
             ref.invalidate(allSalesProvider);
-            ref.invalidate(allExpensesProvider);
+            if (access.canManageExpenses) {
+              ref.invalidate(allExpensesProvider);
+            }
           }
         },
         child: SingleChildScrollView(
@@ -70,24 +90,26 @@ class ReportsScreen extends ConsumerWidget {
                     ),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ProfitCard(
-                      title: 'Daily Profit',
-                      async: dailyProfit,
+              if (dailyProfit != null && weeklyProfit != null) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ProfitCard(
+                        title: 'Daily Profit',
+                        async: dailyProfit,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _ProfitCard(
-                      title: 'Weekly Profit',
-                      async: weeklyProfit,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ProfitCard(
+                        title: 'Weekly Profit',
+                        async: weeklyProfit,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
               Text(
                 'History',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -96,58 +118,65 @@ class ReportsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Sales and expenses grouped by day (dd/mm/yyyy).',
+                access.canManageExpenses
+                    ? 'Sales and expenses grouped by day (dd/mm/yyyy).'
+                    : 'Sales grouped by day (dd/mm/yyyy).',
                 style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
               ),
               const SizedBox(height: 12),
               salesAsync.when(
                 data: (sales) {
-                  return expensesAsync.when(
-                    data: (expenses) {
-                      final transactions = useCloud
-                          ? _mergeCloudTransactions(
-                              sales as List<ApiSale>,
-                              expenses as List<ApiExpense>,
-                            )
-                          : _mergeTransactions(
-                              sales as List<Sale>,
-                              expenses as List<Expense>,
-                            );
-                      if (transactions.isEmpty) {
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
+                  Widget historyFromExpenses(List<dynamic> expenses) {
+                    final transactions = useCloud
+                        ? _mergeCloudTransactions(
+                            sales as List<ApiSale>,
+                            expenses.cast<ApiExpense>(),
+                          )
+                        : _mergeTransactions(
+                            sales as List<Sale>,
+                            expenses.cast<Expense>(),
+                          );
+                    if (transactions.isEmpty) {
+                      return Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            'No history yet',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ),
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final group in _groupByDay(transactions)) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: 8,
+                              bottom: 6,
+                            ),
                             child: Text(
-                              'No history yet',
-                              style: TextStyle(color: Colors.grey[600]),
+                              group.label,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w800),
                             ),
                           ),
-                        );
-                      }
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (final group in _groupByDay(transactions)) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: 8,
-                                bottom: 6,
-                              ),
-                              child: Text(
-                                group.label,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                            ...group.items.map(
-                              (t) => _TransactionTile(transaction: t),
-                            ),
-                          ],
+                          ...group.items.map(
+                            (t) => _TransactionTile(transaction: t),
+                          ),
                         ],
-                      );
-                    },
+                      ],
+                    );
+                  }
+
+                  if (expensesAsync == null) {
+                    return historyFromExpenses(const []);
+                  }
+                  return expensesAsync.when(
+                    data: historyFromExpenses,
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
                     error: (e, _) => Text('Error: $e'),
@@ -167,17 +196,22 @@ class ReportsScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref, {
     required bool useCloud,
+    required bool includeExpenses,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final transactions = useCloud
           ? _mergeCloudTransactions(
               await ref.read(apiSalesProvider.future),
-              await ref.read(apiExpensesProvider.future),
+              includeExpenses
+                  ? await ref.read(apiExpensesProvider.future)
+                  : const <ApiExpense>[],
             )
           : _mergeTransactions(
               await ref.read(allSalesProvider.future),
-              await ref.read(allExpensesProvider.future),
+              includeExpenses
+                  ? await ref.read(allExpensesProvider.future)
+                  : const <Expense>[],
             );
 
       final buffer = StringBuffer(

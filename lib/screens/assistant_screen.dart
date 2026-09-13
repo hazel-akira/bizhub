@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/assistant_provider.dart';
+import '../providers/auth_provider.dart';
+import '../widgets/access_denied_page.dart';
 
 class AssistantScreen extends ConsumerStatefulWidget {
   const AssistantScreen({super.key});
@@ -89,6 +91,11 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenAssistant) {
+      return const AccessDeniedPage(title: 'Assistant');
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Assistant'),

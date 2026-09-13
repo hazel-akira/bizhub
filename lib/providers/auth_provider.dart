@@ -9,8 +9,9 @@ import '../core/staff_access.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
-final googleAuthServiceProvider =
-    Provider<GoogleAuthService>((ref) => GoogleAuthService());
+final googleAuthServiceProvider = Provider<GoogleAuthService>(
+  (ref) => GoogleAuthService(),
+);
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final auth = ref.watch(authProvider);
@@ -20,12 +21,7 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 });
 
 class AuthState {
-  const AuthState({
-    this.isLoading = false,
-    this.user,
-    this.token,
-    this.error,
-  });
+  const AuthState({this.isLoading = false, this.user, this.token, this.error});
 
   final bool isLoading;
   final AuthUser? user;
@@ -52,7 +48,8 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._auth, this._googleAuth) : super(const AuthState(isLoading: true)) {
+  AuthNotifier(this._auth, this._googleAuth)
+    : super(const AuthState(isLoading: true)) {
     _restore();
   }
 
@@ -70,11 +67,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       try {
         final user = await _auth.fetchMe(session.token);
         await _auth.persistUser(session.token, user);
-        state = AuthState(
-          isLoading: false,
-          user: user,
-          token: session.token,
-        );
+        state = AuthState(isLoading: false, user: user, token: session.token);
       } catch (_) {
         state = AuthState(
           isLoading: false,
@@ -97,10 +90,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {}
   }
 
-  Future<void> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> login({required String email, required String password}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final session = await _auth.login(email: email, password: password);
@@ -200,8 +190,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authProvider =
-    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
+final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(
     ref.watch(authServiceProvider),
     ref.watch(googleAuthServiceProvider),

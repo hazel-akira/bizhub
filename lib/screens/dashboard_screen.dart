@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/business_type_config.dart';
 import '../core/layout.dart';
+import '../core/staff_access.dart';
 import '../providers/api_data_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/business_api_provider.dart';
@@ -27,6 +28,7 @@ class DashboardScreen extends ConsumerWidget {
     final alertsAsync = ref.watch(dashboardAlertsProvider);
     final insightsAsync = ref.watch(smartInsightsProvider);
     final topProductsAsync = ref.watch(apiTopProductsProvider);
+    final access = ref.watch(staffAccessProvider);
     final now = DateTime.now();
     final dateLabel = '${now.day}/${now.month}/${now.year}';
 
@@ -69,10 +71,20 @@ class DashboardScreen extends ConsumerWidget {
                     config: config,
                     performance: p,
                     useCloud: useCloud,
+                    canViewSales: access.canViewSales || access.canSell,
+                    canViewProfit: access.canViewProfit,
+                    canManageExpenses: access.canManageExpenses,
+                    canOpenProfit: access.canOpenProfit,
                   ),
                 ),
                 const SizedBox(height: 14),
-                _StatsGrid(config: config, stats: stats),
+                _StatsGrid(
+                  config: config,
+                  stats: stats,
+                  canViewProfit: access.canViewProfit,
+                  canManageExpenses: access.canManageExpenses,
+                  canOpenInventory: access.canOpenInventory,
+                ),
                 if (useCloud) ...[
                   const SizedBox(height: 14),
                   topProductsAsync.when(
@@ -94,15 +106,16 @@ class DashboardScreen extends ConsumerWidget {
                                 const SizedBox(height: 10),
                                 Text(config.emptyCatalogHint),
                                 const SizedBox(height: 14),
-                                FilledButton.icon(
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const InventoryScreen(),
+                                if (access.canOpenInventory)
+                                  FilledButton.icon(
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const InventoryScreen(),
+                                      ),
                                     ),
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Open inventory'),
                                   ),
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('Open inventory'),
-                                ),
                               ],
                             ),
                           ),
@@ -175,7 +188,7 @@ class DashboardScreen extends ConsumerWidget {
                   error: (e, _) => Text('Insights error: $e'),
                 ),
                 const SizedBox(height: 12),
-                _QuickActions(config: config),
+                _QuickActions(config: config, access: access),
               ],
             ),
           ),
@@ -291,6 +304,10 @@ class _PerformanceCard extends StatelessWidget {
     required this.config,
     required this.performance,
     required this.useCloud,
+    required this.canViewSales,
+    required this.canViewProfit,
+    required this.canManageExpenses,
+    required this.canOpenProfit,
   });
 
   final BusinessTypeConfig config;
@@ -311,6 +328,10 @@ class _PerformanceCard extends StatelessWidget {
   })
   performance;
   final bool useCloud;
+  final bool canViewSales;
+  final bool canViewProfit;
+  final bool canManageExpenses;
+  final bool canOpenProfit;
 
   @override
   Widget build(BuildContext context) {
@@ -354,7 +375,7 @@ class _PerformanceCard extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               )
-            else ...[
+            else if (canViewSales) ...[
               _MetricRow(
                 icon: Icons.shopping_bag_outlined,
                 label: config.unitsSoldLabel,
@@ -374,38 +395,46 @@ class _PerformanceCard extends StatelessWidget {
                 label: 'Revenue',
                 value: 'KES ${performance.totalRevenue.toStringAsFixed(0)}',
               ),
-              const SizedBox(height: 8),
-              _MetricRow(
-                icon: Icons.inventory_2_outlined,
-                label: 'COGS',
-                value: 'KES ${performance.cogs.toStringAsFixed(0)}',
-              ),
-              const SizedBox(height: 8),
-              _MetricRow(
-                icon: Icons.stacked_line_chart,
-                label: 'Gross profit',
-                value:
-                    'KES ${performance.grossProfit.toStringAsFixed(0)} (${performance.grossMargin.toStringAsFixed(1)}%)',
-              ),
-              const SizedBox(height: 8),
-              _MetricRow(
-                icon: Icons.money_off_outlined,
-                label: 'Operating expenses',
-                value: 'KES ${performance.totalCosts.toStringAsFixed(0)}',
-              ),
-              const SizedBox(height: 10),
-              FitValue(
-                text:
-                    'Net profit: KES ${performance.netProfit.toStringAsFixed(0)} (${performance.netMargin.toStringAsFixed(1)}%)',
-                alignment: Alignment.centerLeft,
-                textAlign: TextAlign.start,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: performance.netProfit >= 0 ? Colors.green : Colors.red,
+              if (canViewProfit) ...[
+                const SizedBox(height: 8),
+                _MetricRow(
+                  icon: Icons.inventory_2_outlined,
+                  label: 'COGS',
+                  value: 'KES ${performance.cogs.toStringAsFixed(0)}',
                 ),
-              ),
+                const SizedBox(height: 8),
+                _MetricRow(
+                  icon: Icons.stacked_line_chart,
+                  label: 'Gross profit',
+                  value:
+                      'KES ${performance.grossProfit.toStringAsFixed(0)} (${performance.grossMargin.toStringAsFixed(1)}%)',
+                ),
+              ],
+              if (canManageExpenses || canViewProfit) ...[
+                const SizedBox(height: 8),
+                _MetricRow(
+                  icon: Icons.money_off_outlined,
+                  label: 'Operating expenses',
+                  value: 'KES ${performance.totalCosts.toStringAsFixed(0)}',
+                ),
+              ],
+              if (canViewProfit) ...[
+                const SizedBox(height: 10),
+                FitValue(
+                  text:
+                      'Net profit: KES ${performance.netProfit.toStringAsFixed(0)} (${performance.netMargin.toStringAsFixed(1)}%)',
+                  alignment: Alignment.centerLeft,
+                  textAlign: TextAlign.start,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: performance.netProfit >= 0
+                        ? Colors.green
+                        : Colors.red,
+                  ),
+                ),
+              ],
             ],
-            if (performance.hasSales) ...[
+            if (performance.hasSales && canOpenProfit) ...[
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
@@ -465,7 +494,13 @@ class _MetricRow extends StatelessWidget {
 }
 
 class _StatsGrid extends StatelessWidget {
-  const _StatsGrid({required this.config, required this.stats});
+  const _StatsGrid({
+    required this.config,
+    required this.stats,
+    required this.canViewProfit,
+    required this.canManageExpenses,
+    required this.canOpenInventory,
+  });
 
   final BusinessTypeConfig config;
   final ({
@@ -478,69 +513,50 @@ class _StatsGrid extends StatelessWidget {
     int lowStockCount,
   })
   stats;
+  final bool canViewProfit;
+  final bool canManageExpenses;
+  final bool canOpenInventory;
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final aspect = AppLayout.statsAspectRatio(width);
-
-    if (config.isFoodBusiness) {
-      return GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-        childAspectRatio: aspect,
-        children: [
-          _StatCard(
-            title: 'Total sales',
-            value: stats.totalSales,
-            icon: Icons.sell,
-            color: Colors.blue,
-          ),
-          _StatCard(
-            title: 'Money received',
-            value: stats.totalPayments,
-            icon: Icons.payments,
-            color: Colors.green,
-          ),
-          _StatCard(
-            title: 'Pending payments',
-            value: stats.pendingPayments,
-            icon: Icons.pending_actions,
-            color: Colors.red,
-          ),
-          _StatCard(
-            title: 'Expenses',
-            value: stats.totalExpenses,
-            icon: Icons.money_off,
-            color: Colors.orange,
-          ),
-        ],
-      );
-    }
-
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: aspect,
-      children: [
+    final children = <Widget>[
+      _StatCard(
+        title: config.isFoodBusiness ? 'Total sales' : "Today's sales",
+        value: stats.totalSales,
+        icon: config.isFoodBusiness ? Icons.sell : Icons.point_of_sale,
+        color: Colors.blue,
+      ),
+      if (config.isFoodBusiness)
         _StatCard(
-          title: "Today's sales",
-          value: stats.totalSales,
-          icon: Icons.point_of_sale,
-          color: Colors.blue,
+          title: 'Money received',
+          value: stats.totalPayments,
+          icon: Icons.payments,
+          color: Colors.green,
         ),
+      if (config.isFoodBusiness)
+        _StatCard(
+          title: 'Pending payments',
+          value: stats.pendingPayments,
+          icon: Icons.pending_actions,
+          color: Colors.red,
+        ),
+      if (config.isFoodBusiness && canManageExpenses)
+        _StatCard(
+          title: 'Expenses',
+          value: stats.totalExpenses,
+          icon: Icons.money_off,
+          color: Colors.orange,
+        ),
+      if (!config.isFoodBusiness && canViewProfit)
         _StatCard(
           title: "Today's profit",
           value: stats.profit,
           icon: Icons.trending_up,
           color: Colors.green,
         ),
+      if (!config.isFoodBusiness && canOpenInventory) ...[
         _IntStatCard(
           title: 'Products',
           value: stats.productsCount,
@@ -554,30 +570,37 @@ class _StatsGrid extends StatelessWidget {
           color: stats.lowStockCount > 0 ? Colors.red : Colors.grey,
         ),
       ],
+    ];
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      mainAxisSpacing: config.isFoodBusiness ? 14 : 12,
+      crossAxisSpacing: config.isFoodBusiness ? 14 : 12,
+      childAspectRatio: aspect,
+      children: children,
     );
   }
 }
 
 class _QuickActions extends StatelessWidget {
-  const _QuickActions({required this.config});
+  const _QuickActions({required this.config, required this.access});
 
   final BusinessTypeConfig config;
+  final StaffAccess access;
 
   @override
   Widget build(BuildContext context) {
-    return AdaptiveButtonRow(
-      children: [
+    final buttons = <Widget>[];
+
+    if (access.canOpenOrders && config.showOrdersNav) {
+      buttons.add(
         FilledButton.icon(
           onPressed: () {
-            if (config.showOrdersNav) {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const OrdersScreen()));
-            } else {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const SalesScreen()));
-            }
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const OrdersScreen()),
+            );
           },
           icon: Icon(config.primaryQuickActionIcon),
           label: Text(
@@ -586,17 +609,32 @@ class _QuickActions extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
+      );
+    } else if (access.canOpenSales) {
+      buttons.add(
         FilledButton.icon(
           onPressed: () {
-            if (config.showInventoryNav) {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const InventoryScreen()),
-              );
-            } else {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const SalesScreen()));
-            }
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SalesScreen()),
+            );
+          },
+          icon: Icon(config.primaryQuickActionIcon),
+          label: Text(
+            config.primaryQuickActionLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+    }
+
+    if (access.canOpenInventory && config.showInventoryNav) {
+      buttons.add(
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const InventoryScreen()),
+            );
           },
           icon: Icon(config.secondaryQuickActionIcon),
           label: Text(
@@ -605,6 +643,27 @@ class _QuickActions extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
+      );
+    } else if (access.canOpenSales && !config.showInventoryNav) {
+      buttons.add(
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SalesScreen()),
+            );
+          },
+          icon: Icon(config.secondaryQuickActionIcon),
+          label: Text(
+            config.secondaryQuickActionLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+    }
+
+    if (access.canOpenReports) {
+      buttons.add(
         OutlinedButton.icon(
           onPressed: () {
             Navigator.of(context).push(
@@ -618,8 +677,11 @@ class _QuickActions extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-      ],
-    );
+      );
+    }
+
+    if (buttons.isEmpty) return const SizedBox.shrink();
+    return AdaptiveButtonRow(children: buttons);
   }
 }
 

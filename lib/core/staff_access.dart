@@ -72,6 +72,19 @@ class StaffAccess {
   bool get canManageSettings => can('manage_settings');
   bool get canSeeCost => canEditPrice || canViewProfit || canManageStock;
 
+  bool get canOpenSales => canSell || canViewSales;
+  bool get canOpenOrders => canSell || canViewSales;
+  bool get canOpenInventory => canManageStock || canAddProduct;
+  bool get canOpenReports => canViewReports;
+  bool get canOpenExpenses => canManageExpenses;
+  bool get canOpenProfit => canViewProfit;
+  bool get canOpenCustomers => canManageCustomers || canSell;
+  bool get canOpenStaff => canManageStaff;
+  bool get canOpenSettings => canManageSettings;
+  bool get canOpenProduction => canManageStock || canAddProduct;
+  bool get canOpenAssistant =>
+      canSell || canViewSales || canViewReports || canManageStock;
+
   static List<String> normalize(Iterable<String> roles) {
     final out = <String>{};
     for (final raw in roles) {
