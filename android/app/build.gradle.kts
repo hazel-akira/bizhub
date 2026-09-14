@@ -37,7 +37,7 @@ android {
     defaultConfig {
         applicationId = "app.akirabizhub.pos"
         minSdk = flutter.minSdkVersion
-        targetSdk = 35
+        targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

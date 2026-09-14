@@ -79,7 +79,7 @@ Verify: open [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health
 
 See `[services/api/README.md](services/api/README.md)` for database setup and endpoints.
 
-**Production:** Play Store for the Android app; Fly.io + Neon for the API. See `[DEPLOY.md](DEPLOY.md)`.
+**Production:** Play Store for the Android app; Fly.io + Neon for the API. See `[DEPLOY.md](DEPLOY.md)` and the Play Console fill-in guide `[store/play/PLAY_STORE_LISTING.md](store/play/PLAY_STORE_LISTING.md)` (package name, listing copy, and graphics).
 
 ---
 

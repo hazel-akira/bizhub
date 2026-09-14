@@ -59,12 +59,12 @@ class BusinessThemePalette {
         centerTitle: false,
       ),
       navigationBarTheme: NavigationBarThemeData(
-        height: 68,
+        height: 76,
         indicatorColor: primary.withValues(alpha: 0.15),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           const overflow = TextStyle(
-            fontSize: 11,
-            height: 1.1,
+            fontSize: 12,
+            height: 1.15,
             overflow: TextOverflow.ellipsis,
           );
           if (states.contains(WidgetState.selected)) {

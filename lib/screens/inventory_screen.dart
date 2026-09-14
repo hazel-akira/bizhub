@@ -10,6 +10,8 @@ import '../providers/api_data_provider.dart';
 import '../providers/business_api_provider.dart';
 import '../providers/business_profile_provider.dart';
 import '../providers/business_theme_provider.dart';
+import '../providers/auth_provider.dart';
+import '../widgets/access_denied_page.dart';
 import '../widgets/centered_dialog.dart';
 import '../services/backup_export.dart';
 
@@ -783,6 +785,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenInventory) {
+      return const AccessDeniedPage(title: 'Inventory');
+    }
+
     final useCloud = ref.watch(useCloudDataProvider);
     final productsAsync = ref.watch(apiProductsProvider);
     final palette = ref.watch(businessThemePaletteProvider);
@@ -809,7 +816,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 }
               },
             ),
-          if (useCloud)
+          if (useCloud && access.canAddProduct)
             IconButton(
               onPressed: () => _showAddOptions(context),
               icon: const Icon(Icons.add),
@@ -956,26 +963,35 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             isThreeLine: product.createdAt != null,
-                            onTap: () => _editProduct(context, ref, product),
+                            onTap: (access.canManageStock ||
+                                    access.canEditPrice ||
+                                    access.canAddProduct)
+                                ? () => _editProduct(context, ref, product)
+                                : null,
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                IconButton(
-                                  visualDensity: VisualDensity.compact,
-                                  iconSize: 20,
-                                  icon: const Icon(Icons.add_a_photo_outlined),
-                                  onPressed: () =>
-                                      _pickAndUploadImage(context, product),
-                                  tooltip: 'Add photo',
-                                ),
-                                IconButton(
-                                  visualDensity: VisualDensity.compact,
-                                  iconSize: 20,
-                                  icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () =>
-                                      _editProduct(context, ref, product),
-                                  tooltip: 'Edit price & stock',
-                                ),
+                                if (access.canManageStock ||
+                                    access.canAddProduct)
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    iconSize: 20,
+                                    icon: const Icon(Icons.add_a_photo_outlined),
+                                    onPressed: () =>
+                                        _pickAndUploadImage(context, product),
+                                    tooltip: 'Add photo',
+                                  ),
+                                if (access.canManageStock ||
+                                    access.canEditPrice ||
+                                    access.canAddProduct)
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    iconSize: 20,
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed: () =>
+                                        _editProduct(context, ref, product),
+                                    tooltip: 'Edit price & stock',
+                                  ),
                               ],
                             ),
                           ),
@@ -986,7 +1002,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 },
               ),
             ),
-      floatingActionButton: useCloud
+      floatingActionButton: useCloud && access.canAddProduct
           ? FloatingActionButton.extended(
               onPressed: () => _showAddOptions(context),
               icon: const Icon(Icons.add),

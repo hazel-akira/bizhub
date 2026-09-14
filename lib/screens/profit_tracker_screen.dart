@@ -6,6 +6,8 @@ import '../providers/profit_tracker_provider.dart';
 import '../providers/business_profile_provider.dart';
 import '../providers/business_api_provider.dart';
 import '../providers/api_data_provider.dart';
+import '../providers/auth_provider.dart';
+import '../widgets/access_denied_page.dart';
 import '../widgets/food_only_screen.dart';
 
 class ProfitTrackerScreen extends ConsumerStatefulWidget {
@@ -82,6 +84,11 @@ class _ProfitTrackerScreenState extends ConsumerState<ProfitTrackerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenProfit) {
+      return const AccessDeniedPage(title: 'Profit');
+    }
+
     final config = ref.watch(businessTypeConfigProvider);
     final useCloud = ref.watch(useCloudDataProvider);
     if (useCloud) {

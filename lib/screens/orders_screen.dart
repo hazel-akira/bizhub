@@ -7,7 +7,9 @@ import '../providers/business_api_provider.dart';
 import '../providers/customers_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/orders_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/business_profile_provider.dart';
+import '../widgets/access_denied_page.dart';
 import '../widgets/food_only_screen.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
@@ -237,6 +239,11 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenOrders) {
+      return const AccessDeniedPage(title: 'Orders');
+    }
+
     final config = ref.watch(businessTypeConfigProvider);
     if (!config.isFoodBusiness) {
       return const FoodOnlyScreen(title: 'Orders', child: SizedBox.shrink());

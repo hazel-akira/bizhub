@@ -23,6 +23,7 @@ import 'screens/sales_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/staff_screen.dart';
+import 'widgets/access_denied_page.dart';
 
 void main() {
   runApp(
@@ -105,6 +106,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
 
   List<_BottomNavItem> _bottomNavItems() {
     final config = ref.read(businessTypeConfigProvider);
+    final access = ref.read(staffAccessProvider);
     final items = <_BottomNavItem>[
       const _BottomNavItem(
         section: _NavSection.dashboard,
@@ -112,15 +114,20 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
         selectedIcon: Icons.dashboard,
         label: 'Home',
       ),
-      const _BottomNavItem(
-        section: _NavSection.sales,
-        icon: Icons.sell_outlined,
-        selectedIcon: Icons.sell,
-        label: 'Sales',
-      ),
     ];
 
-    if (config.showInventoryNav) {
+    if (access.canOpenSales) {
+      items.add(
+        const _BottomNavItem(
+          section: _NavSection.sales,
+          icon: Icons.sell_outlined,
+          selectedIcon: Icons.sell,
+          label: 'Sales',
+        ),
+      );
+    }
+
+    if (access.canOpenInventory && config.showInventoryNav) {
       items.add(
         const _BottomNavItem(
           section: _NavSection.inventory,
@@ -129,7 +136,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
           label: 'Stock',
         ),
       );
-    } else if (config.showOrdersNav) {
+    } else if (access.canOpenOrders && config.showOrdersNav) {
       items.add(
         const _BottomNavItem(
           section: _NavSection.orders,
@@ -140,25 +147,29 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
       );
     }
 
-    items.add(
-      const _BottomNavItem(
-        section: _NavSection.reports,
-        icon: Icons.assessment_outlined,
-        selectedIcon: Icons.assessment,
-        label: 'Reports',
-      ),
-    );
+    if (access.canOpenReports) {
+      items.add(
+        const _BottomNavItem(
+          section: _NavSection.reports,
+          icon: Icons.assessment_outlined,
+          selectedIcon: Icons.assessment,
+          label: 'Reports',
+        ),
+      );
+    }
 
-    items.add(
-      const _BottomNavItem(
-        section: _NavSection.expenses,
-        icon: Icons.money_off_csred_outlined,
-        selectedIcon: Icons.money_off_csred,
-        label: 'Costs',
-      ),
-    );
+    if (access.canOpenExpenses) {
+      items.add(
+        const _BottomNavItem(
+          section: _NavSection.expenses,
+          icon: Icons.money_off_csred_outlined,
+          selectedIcon: Icons.money_off_csred,
+          label: 'Costs',
+        ),
+      );
+    }
 
-    if (config.showProfitNav) {
+    if (access.canOpenProfit && config.showProfitNav) {
       items.add(
         const _BottomNavItem(
           section: _NavSection.profit,
@@ -172,20 +183,50 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
     return items;
   }
 
-  Widget _screenFor(_NavSection section) {
+  bool _canOpenSection(_NavSection section) {
     final config = ref.read(businessTypeConfigProvider);
+    final access = ref.read(staffAccessProvider);
+    switch (section) {
+      case _NavSection.dashboard:
+        return true;
+      case _NavSection.sales:
+        return access.canOpenSales;
+      case _NavSection.orders:
+        return access.canOpenOrders && config.showOrdersNav;
+      case _NavSection.expenses:
+        return access.canOpenExpenses;
+      case _NavSection.profit:
+        return access.canOpenProfit && config.showProfitNav;
+      case _NavSection.assistant:
+        return access.canOpenAssistant;
+      case _NavSection.production:
+        return access.canOpenProduction && config.showProductionDrawer;
+      case _NavSection.inventory:
+        return access.canOpenInventory && config.showInventoryNav;
+      case _NavSection.reports:
+        return access.canOpenReports;
+      case _NavSection.customers:
+        return access.canOpenCustomers;
+      case _NavSection.settings:
+        return access.canOpenSettings;
+    }
+  }
+
+  Widget _screenFor(_NavSection section) {
+    if (!_canOpenSection(section)) {
+      return const AccessDeniedBody();
+    }
+
     switch (section) {
       case _NavSection.dashboard:
         return const DashboardScreen();
       case _NavSection.sales:
         return const SalesScreen();
       case _NavSection.orders:
-        if (!config.showOrdersNav) return const DashboardScreen();
         return const OrdersScreen();
       case _NavSection.expenses:
         return const ExpensesScreen();
       case _NavSection.profit:
-        if (!config.showProfitNav) return const DashboardScreen();
         return const ProfitTrackerScreen();
       case _NavSection.assistant:
         return const AssistantScreen();
@@ -213,6 +254,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
 
   void _setDrawerSection(_NavSection section) {
     Navigator.of(context).pop();
+    if (!_canOpenSection(section)) return;
     setState(() => _activeSection = section);
   }
 
@@ -220,11 +262,20 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
   Widget build(BuildContext context) {
     final config = ref.watch(businessTypeConfigProvider);
     final auth = ref.watch(authProvider);
+    final access = ref.watch(staffAccessProvider);
     final palette = ref.watch(businessThemePaletteProvider);
     final bottomItems = _bottomNavItems();
-    if (_currentBottomIndex >= bottomItems.length) {
+    if (_currentBottomIndex >= bottomItems.length ||
+        !_canOpenSection(_activeSection)) {
       _currentBottomIndex = 0;
-      _activeSection = _NavSection.dashboard;
+      _activeSection = bottomItems.isNotEmpty
+          ? bottomItems.first.section
+          : _NavSection.dashboard;
+    } else {
+      final matched = bottomItems.indexWhere(
+        (item) => item.section == _activeSection,
+      );
+      if (matched >= 0) _currentBottomIndex = matched;
     }
 
     final appBarTitle = auth.user?.businessName ?? config.appTitle;
@@ -283,61 +334,66 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
-              ListTile(
-                leading: const Icon(Icons.assessment_outlined),
-                title: const Text('Reports'),
-                selected: _activeSection == _NavSection.reports,
-                onTap: () => _setDrawerSection(_NavSection.reports),
-              ),
-              ListTile(
-                leading: const Icon(Icons.smart_toy_outlined),
-                title: const Text('Assistant'),
-                selected: _activeSection == _NavSection.assistant,
-                onTap: () => _setDrawerSection(_NavSection.assistant),
-              ),
-              if (config.showOrdersNav)
+              if (access.canOpenReports)
+                ListTile(
+                  leading: const Icon(Icons.assessment_outlined),
+                  title: const Text('Reports'),
+                  selected: _activeSection == _NavSection.reports,
+                  onTap: () => _setDrawerSection(_NavSection.reports),
+                ),
+              if (access.canOpenAssistant)
+                ListTile(
+                  leading: const Icon(Icons.smart_toy_outlined),
+                  title: const Text('Assistant'),
+                  selected: _activeSection == _NavSection.assistant,
+                  onTap: () => _setDrawerSection(_NavSection.assistant),
+                ),
+              if (access.canOpenOrders && config.showOrdersNav)
                 ListTile(
                   leading: const Icon(Icons.shopping_bag_outlined),
                   title: const Text('Orders'),
                   selected: _activeSection == _NavSection.orders,
                   onTap: () => _setDrawerSection(_NavSection.orders),
                 ),
-              if (config.showInventoryNav)
+              if (access.canOpenInventory && config.showInventoryNav)
                 ListTile(
                   leading: const Icon(Icons.inventory_2_outlined),
                   title: const Text('Inventory'),
                   selected: _activeSection == _NavSection.inventory,
                   onTap: () => _setDrawerSection(_NavSection.inventory),
                 ),
-              if (config.showProductionDrawer)
+              if (access.canOpenProduction && config.showProductionDrawer)
                 ListTile(
                   leading: const Icon(Icons.bakery_dining_outlined),
                   title: const Text('Production'),
                   selected: _activeSection == _NavSection.production,
                   onTap: () => _setDrawerSection(_NavSection.production),
                 ),
-              ListTile(
-                leading: const Icon(Icons.people_outline),
-                title: const Text('Customers'),
-                selected: _activeSection == _NavSection.customers,
-                onTap: () => _setDrawerSection(_NavSection.customers),
-              ),
-              ListTile(
-                leading: const Icon(Icons.badge_outlined),
-                title: const Text('Staff & roles'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const StaffScreen()),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings_outlined),
-                title: const Text('Settings'),
-                selected: _activeSection == _NavSection.settings,
-                onTap: () => _setDrawerSection(_NavSection.settings),
-              ),
+              if (access.canOpenCustomers)
+                ListTile(
+                  leading: const Icon(Icons.people_outline),
+                  title: const Text('Customers'),
+                  selected: _activeSection == _NavSection.customers,
+                  onTap: () => _setDrawerSection(_NavSection.customers),
+                ),
+              if (access.canOpenStaff)
+                ListTile(
+                  leading: const Icon(Icons.badge_outlined),
+                  title: const Text('Staff & roles'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const StaffScreen()),
+                    );
+                  },
+                ),
+              if (access.canOpenSettings)
+                ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: const Text('Settings'),
+                  selected: _activeSection == _NavSection.settings,
+                  onTap: () => _setDrawerSection(_NavSection.settings),
+                ),
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.logout),
@@ -360,9 +416,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentBottomIndex,
         onDestinationSelected: _setBottomSection,
-        labelBehavior: bottomItems.length >= 5
-            ? NavigationDestinationLabelBehavior.onlyShowSelected
-            : NavigationDestinationLabelBehavior.alwaysShow,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: bottomItems
             .map(
               (item) => NavigationDestination(

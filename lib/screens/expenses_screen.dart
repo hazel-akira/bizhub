@@ -5,7 +5,9 @@ import '../models/api_expense.dart';
 import '../providers/api_data_provider.dart';
 import '../providers/business_api_provider.dart';
 import '../providers/expenses_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../widgets/access_denied_page.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
   const ExpensesScreen({super.key});
@@ -54,6 +56,11 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(staffAccessProvider);
+    if (!access.canOpenExpenses) {
+      return const AccessDeniedPage(title: 'Costs');
+    }
+
     final useCloud = ref.watch(useCloudDataProvider);
     final expensesAsync = useCloud
         ? ref.watch(apiTodayExpensesProvider)

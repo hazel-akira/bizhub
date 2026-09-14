@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Concerns\RespondsWithJson;
 use App\Http\Controllers\Controller;
 use App\Enums\BusinessType;
+use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\GoogleAuthRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
+use App\Http\Requests\ResetPasswordRequest;
 use App\Models\Business;
 use App\Models\User;
+use App\Notifications\PasswordResetCodeNotification;
 use App\Services\BusinessSetupService;
 use App\Services\GoogleTokenVerifier;
 use App\Support\StaffAccess;
@@ -17,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -173,6 +177,75 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return $this->profile($request);
+    }
+
+    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
+    {
+        $email = strtolower($request->validated()['email']);
+        $rateKey = 'password-reset:'.$request->ip().':'.$email;
+
+        if (RateLimiter::tooManyAttempts($rateKey, 5)) {
+            throw ValidationException::withMessages([
+                'email' => ['Please wait a minute before requesting another code.'],
+            ]);
+        }
+
+        RateLimiter::hit($rateKey, 60);
+
+        $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+        if ($user && $user->is_active !== false) {
+            $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $user->email],
+                [
+                    'token' => Hash::make($code),
+                    'created_at' => now(),
+                ],
+            );
+
+            $user->notify(new PasswordResetCodeNotification($code));
+        }
+
+        return $this->success(
+            null,
+            200,
+            'If that email is registered, we sent a 6-digit reset code.',
+        );
+    }
+
+    public function resetPassword(ResetPasswordRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $email = strtolower($validated['email']);
+        $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+        $row = $user
+            ? DB::table('password_reset_tokens')->where('email', $user->email)->first()
+            : null;
+        $expiresMinutes = (int) config('auth.passwords.users.expire', 60);
+        $createdAt = $row?->created_at ? \Illuminate\Support\Carbon::parse($row->created_at) : null;
+
+        $valid = $row
+            && $createdAt
+            && $createdAt->greaterThan(now()->subMinutes($expiresMinutes))
+            && Hash::check($validated['code'], $row->token);
+
+        if (! $valid) {
+            throw ValidationException::withMessages([
+                'code' => ['That reset code is invalid or has expired.'],
+            ]);
+        }
+        if (! $user || $user->is_active === false) {
+            throw ValidationException::withMessages([
+                'email' => ['This account cannot reset its password.'],
+            ]);
+        }
+
+        $user->update(['password' => $validated['password']]);
+        $user->tokens()->delete();
+        DB::table('password_reset_tokens')->where('email', $user->email)->delete();
+
+        return $this->success(null, 200, 'Password updated. You can sign in now.');
     }
 
     public function logout(Request $request): JsonResponse
