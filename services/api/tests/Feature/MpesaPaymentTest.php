@@ -281,6 +281,37 @@ class MpesaPaymentTest extends TestCase
         ]);
     }
 
+    public function test_sandbox_shortcode_returns_local_qr_without_daraja(): void
+    {
+        $business = Business::create([
+            'name' => 'Sandbox Shop',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '174379',
+            'consumer_key' => 'test-consumer-key',
+            'consumer_secret' => 'test-consumer-secret',
+            'passkey' => 'test-passkey',
+            'account_type' => 'paybill',
+        ])->assertOk();
+
+        $this->postJson('/api/mpesa/qr', ['amount' => 20])
+            ->assertCreated()
+            ->assertJsonPath('data.sandbox', true)
+            ->assertJsonPath('data.qr_code', '')
+            ->assertJsonPath('data.shortcode', '174379');
+    }
+
     public function test_c2b_confirmation_completes_pending_qr_payment(): void
     {
         Event::fake([MpesaPaymentReceived::class]);

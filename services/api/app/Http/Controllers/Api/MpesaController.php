@@ -169,6 +169,8 @@ class MpesaController extends Controller
             'status' => $transaction->status?->value,
             'reference' => $transaction->reference,
             'qr_code' => $result['qr_code'],
+            'qr_payload' => $result['qr_payload'],
+            'sandbox' => $result['sandbox'],
             'shortcode' => $result['shortcode'],
             'account_type' => $result['account_type'],
             'merchant_name' => $result['merchant_name'],

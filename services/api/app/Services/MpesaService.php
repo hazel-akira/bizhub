@@ -77,7 +77,7 @@ class MpesaService
     /**
      * Lipa na M-Pesa Dynamic QR — customer scans in the M-Pesa app.
      *
-     * @return array{transaction: MpesaTransaction, qr_code: string, shortcode: string, account_type: string, merchant_name: string}
+     * @return array{transaction: MpesaTransaction, qr_code: string, qr_payload: string, sandbox: bool, shortcode: string, account_type: string, merchant_name: string}
      */
     public function createQrPayment(
         Business $business,
@@ -89,6 +89,7 @@ class MpesaService
         $this->registerC2bUrls($config);
 
         $billRef = $this->qrBillReference($reference);
+        $sandbox = $this->isSandboxConfig($config);
         $transaction = MpesaTransaction::create([
             'business_id' => $business->id,
             'user_id' => $user?->id,
@@ -97,22 +98,32 @@ class MpesaService
             'amount' => (int) round($amount),
             'checkout_request_id' => 'qr_'.Str::uuid(),
             'status' => MpesaTransactionStatus::Pending,
-            'metadata' => ['channel' => 'qr'],
-            'result_description' => 'Waiting for the customer to scan the QR in M-Pesa.',
+            'metadata' => ['channel' => 'qr', 'sandbox' => $sandbox],
+            'result_description' => $sandbox
+                ? 'Sandbox QR — a real M-Pesa phone cannot pay 174379. Confirm with a test receipt, or use STK.'
+                : 'Waiting for the customer to scan the QR in M-Pesa.',
         ]);
 
-        $qrCode = $this->sendDarajaDynamicQr($transaction, $config, $business);
+        $qrCode = '';
+        $qrPayload = $this->sandboxQrPayload($transaction, $config, $business);
+        if (! $sandbox) {
+            $qrCode = $this->sendDarajaDynamicQr($transaction, $config, $business);
+        }
 
         $transaction->update([
             'metadata' => [
                 'channel' => 'qr',
+                'sandbox' => $sandbox,
                 'qr_code' => $qrCode,
+                'qr_payload' => $qrPayload,
             ],
         ]);
 
         return [
             'transaction' => $transaction->fresh(),
             'qr_code' => $qrCode,
+            'qr_payload' => $qrPayload,
+            'sandbox' => $sandbox,
             'shortcode' => (string) $config->shortcode,
             'account_type' => $config->account_type?->value ?? MpesaAccountType::Paybill->value,
             'merchant_name' => $this->merchantName($business),
@@ -451,7 +462,7 @@ class MpesaService
         $qrCode = $payload['QRCode'] ?? null;
 
         if ($response->failed() || ! in_array($code, ['0', '00'], true) || ! is_string($qrCode) || $qrCode === '') {
-            $message = $this->darajaErrorMessage($payload, $response->status(), $config);
+            $message = $this->qrFailureMessage($payload, $response->status(), $config);
 
             $transaction->update([
                 'status' => MpesaTransactionStatus::Failed,
@@ -459,11 +470,7 @@ class MpesaService
             ]);
 
             throw ValidationException::withMessages([
-                'mpesa' => [
-                    $message !== '' && ! str_contains(strtolower($message), 'stk')
-                        ? $message
-                        : 'Could not create the Lipa na M-Pesa QR. Check Till/Paybill credentials in Settings.',
-                ],
+                'mpesa' => [$message],
             ]);
         }
 
@@ -520,6 +527,42 @@ class MpesaService
         $name = trim((string) $business->name);
 
         return Str::limit($name !== '' ? $name : 'Akira Flow', 20, '');
+    }
+
+    private function isSandboxConfig(MpesaConfig $config): bool
+    {
+        return trim((string) $config->shortcode) === '174379';
+    }
+
+    private function sandboxQrPayload(
+        MpesaTransaction $transaction,
+        MpesaConfig $config,
+        Business $business,
+    ): string {
+        $type = $config->account_type?->label() ?? 'Paybill';
+        if (trim((string) $config->shortcode) === '174379') {
+            $type = 'Paybill';
+        }
+
+        return implode("\n", array_filter([
+            $this->merchantName($business),
+            'Lipa na M-Pesa '.$type.' '.$config->shortcode,
+            'KES '.$transaction->amount,
+            'Ref '.$transaction->reference,
+        ]));
+    }
+
+    private function qrFailureMessage(mixed $payload, int $status, MpesaConfig $config): string
+    {
+        $message = $this->darajaErrorMessage($payload, $status, $config);
+        $lower = strtolower($message);
+
+        if ($message === '' || str_contains($lower, 'stk')) {
+            return 'Safaricom did not return a Lipa na M-Pesa QR (HTTP '.$status.'). '
+                .'Enable the QR Code product on this Daraja app. Sandbox 174379 cannot be paid by a real phone — use STK, or switch to a live Till/Paybill.';
+        }
+
+        return $message;
     }
 
     private function sendDarajaStkPush(MpesaTransaction $transaction, MpesaConfig $config): void
@@ -655,6 +698,10 @@ class MpesaService
         if ($message !== null && stripos($message, 'invalid callback') !== false) {
             return 'Invalid M-Pesa callback URL. Safaricom rejects URLs containing "mpesa" in the path. '
                 .'Set MPESA_CALLBACK_URL to https://YOUR-DOMAIN/api/payments/stk-callback on the server.';
+        }
+
+        if ($message !== null && (stripos($message, 'product') !== false || stripos($message, 'not authorized') !== false)) {
+            return 'QR is not enabled on this Daraja app. In the Safaricom Daraja portal, add the “QR Code” product to the app, then try again. Sandbox 174379 still cannot be paid by a real M-Pesa phone — use production Till/Paybill for live scan-to-pay.';
         }
 
         if ($message !== null && stripos($message, 'invalid transaction type') !== false) {

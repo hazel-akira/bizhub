@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/phone_utils.dart';
 import '../../providers/auth_provider.dart';
@@ -614,18 +615,35 @@ class _MpesaQrSheetState extends State<_MpesaQrSheet> {
                   child: Image.memory(bytes, width: 240, height: 240),
                 )
               else
-                const Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text('QR image was not returned.'),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  color: Colors.white,
+                  child: QrImageView(
+                    data: widget.qr.qrPayload ??
+                        'Lipa na M-Pesa $tillLabel $shortcode\nKES ${widget.qr.amount}',
+                    size: 240,
+                    backgroundColor: Colors.white,
+                  ),
                 ),
-              const SizedBox(height: 12),
-              Text(
-                'Ask the customer to open M-Pesa → Scan QR, then enter PIN.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey.shade700,
+              if (widget.qr.sandbox || shortcode == '174379') ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Sandbox QR: the image can be generated, but a real M-Pesa app cannot pay 174379. Use STK for sandbox tests, or type a test receipt with “I have the M-Pesa code”. Live scan-to-pay needs a production Till or Paybill.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.orange.shade800,
+                  ),
                 ),
-              ),
+              ] else ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Ask the customer to open M-Pesa → Scan QR, then enter PIN.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               if (_confirming)
                 const CircularProgressIndicator()

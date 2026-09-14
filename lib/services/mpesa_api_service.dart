@@ -87,6 +87,8 @@ class MpesaQrInitResult {
     this.shortcode,
     this.accountType,
     this.merchantName,
+    this.qrPayload,
+    this.sandbox = false,
   });
 
   final String checkoutRequestId;
@@ -97,6 +99,8 @@ class MpesaQrInitResult {
   final String? shortcode;
   final String? accountType;
   final String? merchantName;
+  final String? qrPayload;
+  final bool sandbox;
 
   factory MpesaQrInitResult.fromJson(Map<String, dynamic> json) {
     return MpesaQrInitResult(
@@ -108,6 +112,8 @@ class MpesaQrInitResult {
       shortcode: json['shortcode'] as String?,
       accountType: json['account_type'] as String?,
       merchantName: json['merchant_name'] as String?,
+      qrPayload: json['qr_payload'] as String?,
+      sandbox: json['sandbox'] as bool? ?? false,
     );
   }
 }

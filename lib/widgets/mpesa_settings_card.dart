@@ -156,7 +156,7 @@ class _MpesaSettingsCardState extends ConsumerState<MpesaSettingsCard> {
                 if (_shortcode.text.trim() == '174379') ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Sandbox shortcode 174379 requires Paybill (saved automatically).',
+                    'Sandbox shortcode 174379 is for STK tests. A real phone cannot scan-to-pay this QR. Add the QR Code product on your Daraja app if you want the image to generate. Live QR needs a production Till or Paybill.',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: Colors.orange.shade800,
                     ),
