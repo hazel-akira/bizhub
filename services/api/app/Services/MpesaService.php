@@ -106,8 +106,21 @@ class MpesaService
 
         $qrCode = '';
         $qrPayload = $this->sandboxQrPayload($transaction, $config, $business);
-        if (! $sandbox) {
+        try {
             $qrCode = $this->sendDarajaDynamicQr($transaction, $config, $business);
+        } catch (ValidationException $e) {
+            if (! $sandbox) {
+                $transaction->update([
+                    'status' => MpesaTransactionStatus::Failed,
+                    'result_description' => collect($e->errors())->flatten()->first() ?: 'QR generate failed',
+                ]);
+                throw $e;
+            }
+
+            Log::warning('Sandbox Dynamic QR unavailable, using local QR', [
+                'business_id' => $business->id,
+                'error' => collect($e->errors())->flatten()->first(),
+            ]);
         }
 
         $transaction->update([
@@ -447,7 +460,7 @@ class MpesaService
             ->post(config('services.mpesa.base_url').'/mpesa/qrcode/v1/generate', [
                 'MerchantName' => $this->merchantName($business),
                 'RefNo' => $transaction->reference,
-                'Amount' => (string) $transaction->amount,
+                'Amount' => (int) $transaction->amount,
                 'TrxCode' => $accountType->qrTrxCode(),
                 'CPI' => trim((string) $config->shortcode),
                 'Size' => '300',
@@ -462,15 +475,14 @@ class MpesaService
         $qrCode = $payload['QRCode'] ?? null;
 
         if ($response->failed() || ! in_array($code, ['0', '00'], true) || ! is_string($qrCode) || $qrCode === '') {
-            $message = $this->qrFailureMessage($payload, $response->status(), $config);
-
-            $transaction->update([
-                'status' => MpesaTransactionStatus::Failed,
-                'result_description' => $message,
+            Log::warning('Daraja Dynamic QR failed', [
+                'status' => $response->status(),
+                'body' => $payload,
+                'shortcode' => $config->shortcode,
             ]);
 
             throw ValidationException::withMessages([
-                'mpesa' => [$message],
+                'mpesa' => [$this->qrFailureMessage($payload, $response->status(), $config)],
             ]);
         }
 

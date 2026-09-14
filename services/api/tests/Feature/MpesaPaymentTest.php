@@ -281,8 +281,17 @@ class MpesaPaymentTest extends TestCase
         ]);
     }
 
-    public function test_sandbox_shortcode_returns_local_qr_without_daraja(): void
+    public function test_sandbox_shortcode_falls_back_to_local_qr_when_daraja_qr_fails(): void
     {
+        Http::fake([
+            '*/oauth/v1/generate*' => Http::response(['access_token' => 'test-token', 'expires_in' => 3599]),
+            '*/mpesa/c2b/v1/registerurl' => Http::response(['ResponseCode' => '0']),
+            '*/mpesa/qrcode/v1/generate' => Http::response([
+                'requestId' => 'id',
+                'errorCode' => '400.002.02',
+                'errorMessage' => 'Bad Request',
+            ], 400),
+        ]);
         $business = Business::create([
             'name' => 'Sandbox Shop',
             'business_type' => 'grocery_shop',
@@ -310,6 +319,46 @@ class MpesaPaymentTest extends TestCase
             ->assertJsonPath('data.sandbox', true)
             ->assertJsonPath('data.qr_code', '')
             ->assertJsonPath('data.shortcode', '174379');
+    }
+
+    public function test_sandbox_uses_official_dynamic_qr_when_daraja_succeeds(): void
+    {
+        Http::fake([
+            '*/oauth/v1/generate*' => Http::response(['access_token' => 'test-token', 'expires_in' => 3599]),
+            '*/mpesa/c2b/v1/registerurl' => Http::response(['ResponseCode' => '0']),
+            '*/mpesa/qrcode/v1/generate' => Http::response([
+                'ResponseCode' => '00',
+                'ResponseDescription' => 'QR Code Successfully Generated.',
+                'QRCode' => base64_encode('official-qr'),
+            ]),
+        ]);
+
+        $business = Business::create([
+            'name' => 'Sandbox Shop',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '174379',
+            'consumer_key' => 'test-consumer-key',
+            'consumer_secret' => 'test-consumer-secret',
+            'passkey' => 'test-passkey',
+            'account_type' => 'paybill',
+        ])->assertOk();
+
+        $this->postJson('/api/mpesa/qr', ['amount' => 20])
+            ->assertCreated()
+            ->assertJsonPath('data.sandbox', true)
+            ->assertJsonPath('data.qr_code', base64_encode('official-qr'));
     }
 
     public function test_c2b_confirmation_completes_pending_qr_payment(): void
