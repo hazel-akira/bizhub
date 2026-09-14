@@ -117,7 +117,7 @@ class _MpesaSettingsCardState extends ConsumerState<MpesaSettingsCard> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Each business uses its own Till or Paybill. Credentials are encrypted on the server. For Daraja sandbox STK, use account type Paybill, shortcode 174379, and the Lipa Na M-Pesa Online passkey — not the C2B/B2C shortcode.',
+                  'Each business uses its own Till or Paybill. When this is saved, cashiers can send an STK prompt or show a Lipa na M-Pesa QR for the customer to scan. Credentials are encrypted on the server. For Daraja sandbox STK, use account type Paybill, shortcode 174379, and the Lipa Na M-Pesa Online passkey.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: Colors.grey.shade700,
                   ),

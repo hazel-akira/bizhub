@@ -77,6 +77,41 @@ class StkStatusResult {
   }
 }
 
+class MpesaQrInitResult {
+  const MpesaQrInitResult({
+    required this.checkoutRequestId,
+    required this.qrCode,
+    required this.amount,
+    required this.status,
+    this.reference,
+    this.shortcode,
+    this.accountType,
+    this.merchantName,
+  });
+
+  final String checkoutRequestId;
+  final String qrCode;
+  final int amount;
+  final String status;
+  final String? reference;
+  final String? shortcode;
+  final String? accountType;
+  final String? merchantName;
+
+  factory MpesaQrInitResult.fromJson(Map<String, dynamic> json) {
+    return MpesaQrInitResult(
+      checkoutRequestId: json['checkout_request_id'] as String? ?? '',
+      qrCode: json['qr_code'] as String? ?? '',
+      amount: json['amount'] as int? ?? 0,
+      status: json['status'] as String? ?? 'PENDING',
+      reference: json['reference'] as String?,
+      shortcode: json['shortcode'] as String?,
+      accountType: json['account_type'] as String?,
+      merchantName: json['merchant_name'] as String?,
+    );
+  }
+}
+
 /// Calls the Laravel M-Pesa API using the signed-in tenant.
 class MpesaApiService {
   MpesaApiService(this._api);
@@ -134,6 +169,38 @@ class MpesaApiService {
     );
 
     return StkInitResult.fromJson(_data(json));
+  }
+
+  /// Lipa na M-Pesa Dynamic QR for the customer to scan in the M-Pesa app.
+  Future<MpesaQrInitResult> generatePaymentQr({
+    required double amount,
+    String? reference,
+  }) async {
+    final json = await _api.post(
+      '/api/mpesa/qr',
+      auth: true,
+      timeout: const Duration(seconds: 30),
+      body: {
+        'amount': amount,
+        'reference': ?reference,
+      },
+    );
+    return MpesaQrInitResult.fromJson(_data(json));
+  }
+
+  Future<StkStatusResult> confirmQrPayment({
+    required String checkoutRequestId,
+    required String mpesaReceiptNumber,
+  }) async {
+    final json = await _api.post(
+      '/api/mpesa/qr/confirm',
+      auth: true,
+      body: {
+        'checkout_request_id': checkoutRequestId,
+        'mpesa_receipt_number': mpesaReceiptNumber,
+      },
+    );
+    return StkStatusResult.fromJson(_data(json));
   }
 
   /// Unpaid-screen compatibility helper.

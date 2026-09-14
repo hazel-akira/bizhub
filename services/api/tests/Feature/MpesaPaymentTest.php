@@ -9,6 +9,7 @@ use App\Models\MpesaTransaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -208,5 +209,113 @@ class MpesaPaymentTest extends TestCase
 
         $this->assertTrue($info['valid']);
         $this->assertSame('https://example.com/api/payments/stk-callback', $info['url']);
+    }
+
+    public function test_generate_qr_requires_mpesa_config(): void
+    {
+        $business = Business::create([
+            'name' => 'Test Shop',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/mpesa/qr', ['amount' => 200])->assertStatus(422);
+    }
+
+    public function test_owner_can_generate_lipa_na_mpesa_qr(): void
+    {
+        Http::fake([
+            '*/oauth/v1/generate*' => Http::response(['access_token' => 'test-token', 'expires_in' => 3599]),
+            '*/mpesa/c2b/v1/registerurl' => Http::response(['ConversationID' => 'c', 'ResponseCode' => '0']),
+            '*/mpesa/qrcode/v1/generate' => Http::response([
+                'ResponseCode' => '00',
+                'ResponseDescription' => 'QR generated',
+                'QRCode' => base64_encode('fake-qr-png'),
+            ]),
+        ]);
+
+        $business = Business::create([
+            'name' => 'Mama Mboga',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '123456',
+            'consumer_key' => 'test-consumer-key',
+            'consumer_secret' => 'test-consumer-secret',
+            'passkey' => 'test-passkey',
+            'account_type' => 'till',
+        ])->assertOk();
+
+        $this->postJson('/api/mpesa/qr', [
+            'amount' => 250,
+            'reference' => 'sale_99',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.amount', 250)
+            ->assertJsonPath('data.shortcode', '123456')
+            ->assertJsonPath('data.account_type', 'till')
+            ->assertJsonPath('data.qr_code', base64_encode('fake-qr-png'));
+
+        $this->assertDatabaseHas('mpesa_transactions', [
+            'business_id' => $business->id,
+            'amount' => 250,
+            'status' => MpesaTransactionStatus::Pending->value,
+        ]);
+    }
+
+    public function test_c2b_confirmation_completes_pending_qr_payment(): void
+    {
+        Event::fake([MpesaPaymentReceived::class]);
+
+        $business = Business::create([
+            'name' => 'Test Shop',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $transaction = MpesaTransaction::create([
+            'business_id' => $business->id,
+            'phone' => 'qr',
+            'amount' => 250,
+            'reference' => 'SALE99QR',
+            'checkout_request_id' => 'qr_test_1',
+            'status' => MpesaTransactionStatus::Pending,
+            'metadata' => ['channel' => 'qr'],
+        ]);
+
+        $this->postJson('/api/payments/c2b-confirm', [
+            'TransactionType' => 'Buy Goods',
+            'TransID' => 'QLK7RT61SV',
+            'TransTime' => '20260914120000',
+            'TransAmount' => '250',
+            'BusinessShortCode' => '123456',
+            'BillRefNumber' => 'SALE99QR',
+            'MSISDN' => '254712345678',
+        ])
+            ->assertOk()
+            ->assertJson(['ResultCode' => 0]);
+
+        $transaction->refresh();
+        $this->assertSame(MpesaTransactionStatus::Completed, $transaction->status);
+        $this->assertSame('QLK7RT61SV', $transaction->mpesa_receipt_number);
+        Event::assertDispatched(MpesaPaymentReceived::class);
     }
 }

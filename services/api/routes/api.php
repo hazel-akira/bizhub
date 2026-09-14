@@ -148,6 +148,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('permission:sell')->group(function () {
             Route::post('/mpesa/stk-push', [MpesaController::class, 'stkPush']);
             Route::post('/mpesa/stk', [MpesaController::class, 'stk']);
+            Route::post('/mpesa/qr', [MpesaController::class, 'generateQr']);
+            Route::post('/mpesa/qr/confirm', [MpesaController::class, 'confirmQr']);
             Route::get('/mpesa/status/{checkoutRequestId}', [MpesaController::class, 'status']);
         });
 
@@ -170,4 +172,6 @@ Route::middleware('auth:sanctum')->group(function () {
 // Safaricom Daraja webhook — must stay public (no auth:sanctum).
 // Use /payments/stk-callback (Safaricom rejects URLs containing "mpesa" in the path).
 Route::post('/payments/stk-callback', [MpesaController::class, 'callback']);
+Route::post('/payments/c2b-confirm', [MpesaController::class, 'c2bConfirm']);
+Route::post('/payments/c2b-validate', [MpesaController::class, 'c2bValidate']);
 Route::post('/mpesa/callback', [MpesaController::class, 'callback']); // legacy alias

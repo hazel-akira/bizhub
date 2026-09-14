@@ -15,11 +15,13 @@ use App\Models\User;
 use App\Notifications\PasswordResetCodeNotification;
 use App\Services\BusinessSetupService;
 use App\Services\GoogleTokenVerifier;
+use App\Support\MailerAvailability;
 use App\Support\StaffAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -192,6 +194,16 @@ class AuthController extends Controller
 
         RateLimiter::hit($rateKey, 60);
 
+        MailerAvailability::configure();
+        if (! MailerAvailability::canDeliver()) {
+            Log::critical('Password reset requested but no mailer is configured.');
+
+            return $this->error(
+                'Password reset email is not configured on the server. Set RESEND_API_KEY or SMTP mail credentials, then try again.',
+                503,
+            );
+        }
+
         $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
         if ($user && $user->is_active !== false) {
             $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
@@ -204,7 +216,19 @@ class AuthController extends Controller
                 ],
             );
 
-            $user->notify(new PasswordResetCodeNotification($code));
+            try {
+                $user->notify(new PasswordResetCodeNotification($code));
+            } catch (\Throwable $e) {
+                Log::error('Password reset email failed', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return $this->error(
+                    'Could not send the reset code. Please try again in a few minutes.',
+                    503,
+                );
+            }
         }
 
         return $this->success(

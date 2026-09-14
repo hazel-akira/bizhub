@@ -143,6 +143,15 @@ class AuthService {
         errors: e.errors,
       );
     }
+    if (e.statusCode == 503) {
+      return ApiException(
+        e.message.isNotEmpty
+            ? e.message
+            : 'Password reset email is not available yet. Try again shortly.',
+        statusCode: e.statusCode,
+        errors: e.errors,
+      );
+    }
     return e;
   }
 

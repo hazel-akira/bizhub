@@ -15,6 +15,14 @@ enum MpesaAccountType: string
         };
     }
 
+    public function qrTrxCode(): string
+    {
+        return match ($this) {
+            self::Paybill => 'PB',
+            self::Till => 'BG',
+        };
+    }
+
     public function label(): string
     {
         return match ($this) {

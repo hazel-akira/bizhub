@@ -9,6 +9,7 @@ import 'providers/business_profile_provider.dart';
 import 'providers/business_theme_provider.dart';
 import 'providers/database_provider.dart';
 import 'screens/login_screen.dart';
+import 'services/api_config_service.dart';
 import 'services/sales_reminder_service.dart';
 import 'screens/assistant_screen.dart';
 import 'screens/customers_screen.dart';
@@ -25,7 +26,9 @@ import 'screens/splash_screen.dart';
 import 'screens/staff_screen.dart';
 import 'widgets/access_denied_page.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ApiConfigService.getBaseUrl();
   runApp(
     const ProviderScope(
       child: BizHubApp(),

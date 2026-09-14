@@ -36,6 +36,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Path must NOT contain "mpesa" — Daraja rejects those URLs.
         $middleware->validateCsrfTokens(except: [
             'api/payments/stk-callback',
+            'api/payments/c2b-confirm',
+            'api/payments/c2b-validate',
             'api/mpesa/callback',
         ]);
     })

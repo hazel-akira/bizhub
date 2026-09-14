@@ -462,7 +462,7 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                           onPressed: _canPay
                               ? () => _submit(method: 'mpesa')
                               : null,
-                          icon: const Icon(Icons.phone_android),
+                          icon: const Icon(Icons.qr_code_2),
                           label: const Text(
                             'Pay M-Pesa',
                             maxLines: 1,

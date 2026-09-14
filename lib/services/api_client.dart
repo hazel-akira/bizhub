@@ -6,18 +6,6 @@ import 'package:http/http.dart' as http;
 
 import 'api_config_service.dart';
 
-class ApiConnectionResult {
-  const ApiConnectionResult({
-    required this.ok,
-    required this.url,
-    this.message,
-  });
-
-  final bool ok;
-  final String url;
-  final String? message;
-}
-
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode, this.errors});
 
@@ -51,56 +39,6 @@ class ApiClient {
   String? get token => _token;
 
   void clearBaseUrlCache() => _cachedBaseUrl = null;
-
-  Future<bool> testConnection() async {
-    final result = await testConnectionDetailed();
-    return result.ok;
-  }
-
-  Future<ApiConnectionResult> testConnectionDetailed() async {
-    try {
-      final base = await _resolveBaseUrl();
-      final uri = Uri.parse('$base/api/health');
-      final response = await _client.get(uri).timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        return ApiConnectionResult(ok: true, url: base);
-      }
-      return ApiConnectionResult(
-        ok: false,
-        url: base,
-        message: 'Server responded ${response.statusCode} (expected 200 from /api/health)',
-      );
-    } on SocketException catch (e) {
-      final base = await _resolveBaseUrl();
-      return ApiConnectionResult(
-        ok: false,
-        url: base,
-        message: _socketHelp(base, e.message),
-      );
-    } on TimeoutException {
-      return ApiConnectionResult(
-        ok: false,
-        url: await _resolveBaseUrl(),
-        message: 'Timed out — is ./scripts/start-api.sh running?',
-      );
-    } catch (e) {
-      return ApiConnectionResult(
-        ok: false,
-        url: await _resolveBaseUrl(),
-        message: e.toString(),
-      );
-    }
-  }
-
-  String _socketHelp(String url, String? detail) {
-    if (url.contains('127.0.0.1') || url.contains('localhost')) {
-      return '127.0.0.1 only works on this PC. On Android emulator use http://10.0.2.2:8000; on a phone use http://YOUR_PC_IP:8000';
-    }
-    if (detail != null && detail.isNotEmpty) {
-      return detail;
-    }
-    return 'Cannot open socket to server';
-  }
 
   Future<Map<String, dynamic>> get(
     String path, {
@@ -188,7 +126,7 @@ class ApiClient {
         _timeout,
         onTimeout: () {
           throw ApiException(
-            'Upload timed out. Tap "Test" on the login screen to check the API.',
+            'Upload timed out. Check your internet connection and try again.',
           );
         },
       );
@@ -227,7 +165,7 @@ class ApiClient {
         timeout ?? _timeout,
         onTimeout: () {
           throw ApiException(
-            'Request timed out. Tap "Test" on the login screen to check the API.',
+            'Request timed out. Check your internet connection and try again.',
           );
         },
       );
@@ -244,10 +182,7 @@ class ApiClient {
 
   Future<String> _connectionHelp() async {
     final url = await _resolveBaseUrl();
-    return 'Cannot reach the API at $url.\n'
-        '1. Run: ./scripts/start-api.sh\n'
-        '2. Tap Test on the login screen\n'
-        '3. On Chrome/web: use Linux desktop (flutter run → option 1) if CORS blocks';
+    return 'Cannot reach the API at $url. Check your internet connection and try again.';
   }
 
   Map<String, String> _headers({bool auth = false}) {

@@ -1,32 +1,17 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../core/api_config.dart' show defaultApiBaseUrl;
+import '../core/api_config.dart';
 
-/// Persists a custom API base URL (overrides platform default).
+/// Resolves the API base URL and clears leftover custom hosts from older builds.
 class ApiConfigService {
   static const _urlKey = 'akira_api_base_url';
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_urlKey)?.trim();
+    final saved = prefs.getString(_urlKey);
     if (saved != null && saved.isNotEmpty) {
-      return saved.replaceAll(RegExp(r'/+$'), '');
+      await prefs.remove(_urlKey);
     }
     return defaultApiBaseUrl;
-  }
-
-  static Future<void> setBaseUrl(String url) async {
-    final prefs = await SharedPreferences.getInstance();
-    final trimmed = url.trim().replaceAll(RegExp(r'/+$'), '');
-    if (trimmed.isEmpty) {
-      await prefs.remove(_urlKey);
-    } else {
-      await prefs.setString(_urlKey, trimmed);
-    }
-  }
-
-  static Future<void> resetToDefault() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_urlKey);
   }
 }

@@ -8,7 +8,6 @@ import '../models/google_auth_exceptions.dart';
 import '../providers/auth_provider.dart';
 import '../services/business_type_service.dart';
 import '../services/google_auth_service.dart';
-import '../widgets/api_connection_card.dart';
 import '../widgets/business_category_dropdown.dart';
 import '../widgets/google_sign_in_button.dart';
 import '../widgets/google_sign_in_setup_dialog.dart';
@@ -204,9 +203,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     color: Colors.grey.shade600,
                   ),
                 ),
-                const SizedBox(height: 16),
-                const ApiConnectionCard(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 TextFormField(
                   controller: _businessController,
                   textCapitalization: TextCapitalization.words,

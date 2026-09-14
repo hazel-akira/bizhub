@@ -74,6 +74,147 @@ class MpesaService
         return $transaction->fresh();
     }
 
+    /**
+     * Lipa na M-Pesa Dynamic QR — customer scans in the M-Pesa app.
+     *
+     * @return array{transaction: MpesaTransaction, qr_code: string, shortcode: string, account_type: string, merchant_name: string}
+     */
+    public function createQrPayment(
+        Business $business,
+        float $amount,
+        ?string $reference = null,
+        ?User $user = null,
+    ): array {
+        $config = $this->requireConfig($business);
+        $this->registerC2bUrls($config);
+
+        $billRef = $this->qrBillReference($reference);
+        $transaction = MpesaTransaction::create([
+            'business_id' => $business->id,
+            'user_id' => $user?->id,
+            'reference' => $billRef,
+            'phone' => 'qr',
+            'amount' => (int) round($amount),
+            'checkout_request_id' => 'qr_'.Str::uuid(),
+            'status' => MpesaTransactionStatus::Pending,
+            'metadata' => ['channel' => 'qr'],
+            'result_description' => 'Waiting for the customer to scan the QR in M-Pesa.',
+        ]);
+
+        $qrCode = $this->sendDarajaDynamicQr($transaction, $config, $business);
+
+        $transaction->update([
+            'metadata' => [
+                'channel' => 'qr',
+                'qr_code' => $qrCode,
+            ],
+        ]);
+
+        return [
+            'transaction' => $transaction->fresh(),
+            'qr_code' => $qrCode,
+            'shortcode' => (string) $config->shortcode,
+            'account_type' => $config->account_type?->value ?? MpesaAccountType::Paybill->value,
+            'merchant_name' => $this->merchantName($business),
+        ];
+    }
+
+    public function confirmQrByReceipt(
+        string $checkoutRequestId,
+        string $receipt,
+        int $businessId,
+    ): MpesaTransaction {
+        $transaction = MpesaTransaction::query()
+            ->forBusiness($businessId)
+            ->where('checkout_request_id', $checkoutRequestId)
+            ->first();
+
+        if (! $transaction) {
+            throw ValidationException::withMessages([
+                'mpesa' => ['Unknown QR payment.'],
+            ]);
+        }
+
+        if ($transaction->status === MpesaTransactionStatus::Completed) {
+            return $transaction;
+        }
+
+        $transaction->update([
+            'status' => MpesaTransactionStatus::Completed,
+            'mpesa_receipt_number' => strtoupper(trim($receipt)),
+            'result_description' => 'Confirmed from M-Pesa message.',
+        ]);
+
+        MpesaPaymentReceived::dispatch($transaction->fresh());
+
+        return $transaction->fresh();
+    }
+
+    public function handleC2bValidation(): array
+    {
+        return ['ResultCode' => 0, 'ResultDesc' => 'Accepted'];
+    }
+
+    public function handleC2bConfirmation(array $payload): void
+    {
+        Log::info('M-Pesa C2B confirmation received', [
+            'trans_id' => $payload['TransID'] ?? null,
+            'shortcode' => $payload['BusinessShortCode'] ?? null,
+        ]);
+
+        $receipt = is_string($payload['TransID'] ?? null) ? $payload['TransID'] : null;
+        $amount = (int) round((float) ($payload['TransAmount'] ?? 0));
+        $shortcode = trim((string) ($payload['BusinessShortCode'] ?? ''));
+        $billRef = trim((string) ($payload['BillRefNumber'] ?? $payload['InvoiceNumber'] ?? ''));
+        $phone = isset($payload['MSISDN']) ? $this->normalizePhone((string) $payload['MSISDN']) : null;
+
+        if ($receipt && MpesaTransaction::query()->where('mpesa_receipt_number', $receipt)->exists()) {
+            return;
+        }
+
+        $transaction = null;
+        if ($billRef !== '') {
+            $transaction = MpesaTransaction::query()
+                ->where('status', MpesaTransactionStatus::Pending)
+                ->where('reference', $billRef)
+                ->latest('id')
+                ->first();
+        }
+
+        if (! $transaction && $shortcode !== '' && $amount > 0) {
+            $transaction = MpesaTransaction::query()
+                ->where('status', MpesaTransactionStatus::Pending)
+                ->where('amount', $amount)
+                ->where('checkout_request_id', 'like', 'qr_%')
+                ->whereHas('business.mpesaConfig', function ($query) use ($shortcode) {
+                    $query->where('shortcode', $shortcode);
+                })
+                ->where('created_at', '>=', now()->subMinutes(20))
+                ->latest('id')
+                ->first();
+        }
+
+        if (! $transaction) {
+            return;
+        }
+
+        $transaction->update([
+            'status' => MpesaTransactionStatus::Completed,
+            'mpesa_receipt_number' => $receipt,
+            'phone' => filled($phone) && $phone !== 'qr' ? $phone : $transaction->phone,
+            'result_description' => 'Paid via Lipa na M-Pesa QR.',
+        ]);
+
+        if ($transaction->order_id) {
+            $transaction->order?->update([
+                'payment_status' => 'paid',
+                'mpesa_receipt' => $transaction->mpesa_receipt_number,
+            ]);
+        }
+
+        MpesaPaymentReceived::dispatch($transaction->fresh());
+    }
+
     /** @deprecated Use initiateStkPush() — kept for unpaid-screen compatibility */
     public function initiateStk(float $amount, string $phone, string $reference, ?User $user = null): array
     {
@@ -105,6 +246,7 @@ class MpesaService
             $transaction
             && $transaction->status === MpesaTransactionStatus::Pending
             && $transaction->created_at?->lt(now()->subSeconds(8))
+            && ! str_starts_with((string) $transaction->checkout_request_id, 'qr_')
         ) {
             $this->reconcileWithDaraja($transaction);
             $transaction->refresh();
@@ -266,6 +408,7 @@ class MpesaService
 
     private function requireConfig(Business $business): MpesaConfig
     {
+        $business->load('mpesaConfig');
         $config = $business->mpesaConfig;
         if (! $config?->isReady()) {
             throw ValidationException::withMessages([
@@ -274,6 +417,109 @@ class MpesaService
         }
 
         return $config;
+    }
+
+    private function sendDarajaDynamicQr(
+        MpesaTransaction $transaction,
+        MpesaConfig $config,
+        Business $business,
+    ): string {
+        $accountType = $config->account_type ?? MpesaAccountType::Paybill;
+        if (trim((string) $config->shortcode) === '174379') {
+            $accountType = MpesaAccountType::Paybill;
+        }
+
+        $response = Http::timeout(30)
+            ->withToken($this->getAccessToken($config))
+            ->acceptJson()
+            ->asJson()
+            ->post(config('services.mpesa.base_url').'/mpesa/qrcode/v1/generate', [
+                'MerchantName' => $this->merchantName($business),
+                'RefNo' => $transaction->reference,
+                'Amount' => (string) $transaction->amount,
+                'TrxCode' => $accountType->qrTrxCode(),
+                'CPI' => trim((string) $config->shortcode),
+                'Size' => '300',
+            ]);
+
+        $payload = $response->json();
+        if (! is_array($payload)) {
+            $payload = [];
+        }
+
+        $code = (string) ($payload['ResponseCode'] ?? '');
+        $qrCode = $payload['QRCode'] ?? null;
+
+        if ($response->failed() || ! in_array($code, ['0', '00'], true) || ! is_string($qrCode) || $qrCode === '') {
+            $message = $this->darajaErrorMessage($payload, $response->status(), $config);
+
+            $transaction->update([
+                'status' => MpesaTransactionStatus::Failed,
+                'result_description' => $message,
+            ]);
+
+            throw ValidationException::withMessages([
+                'mpesa' => [
+                    $message !== '' && ! str_contains(strtolower($message), 'stk')
+                        ? $message
+                        : 'Could not create the Lipa na M-Pesa QR. Check Till/Paybill credentials in Settings.',
+                ],
+            ]);
+        }
+
+        return $qrCode;
+    }
+
+    private function registerC2bUrls(MpesaConfig $config): void
+    {
+        try {
+            $confirm = $this->resolveC2bUrl('c2b-confirm');
+            $validate = $this->resolveC2bUrl('c2b-validate');
+
+            Http::timeout(20)
+                ->withToken($this->getAccessToken($config))
+                ->acceptJson()
+                ->asJson()
+                ->post(config('services.mpesa.base_url').'/mpesa/c2b/v1/registerurl', [
+                    'ShortCode' => trim((string) $config->shortcode),
+                    'ResponseType' => 'Completed',
+                    'ConfirmationURL' => $confirm,
+                    'ValidationURL' => $validate,
+                ]);
+        } catch (\Throwable $e) {
+            Log::warning('M-Pesa C2B URL registration skipped', [
+                'business_id' => $config->business_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function resolveC2bUrl(string $suffix): string
+    {
+        $stk = $this->resolveCallbackUrl();
+        $replaced = preg_replace('#/stk-callback$#', '/'.$suffix, $stk);
+        if (is_string($replaced) && $replaced !== $stk) {
+            return $replaced;
+        }
+
+        return rtrim((string) config('app.url'), '/').'/api/payments/'.$suffix;
+    }
+
+    private function qrBillReference(?string $reference): string
+    {
+        $clean = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $reference) ?? '');
+        if ($clean === '') {
+            $clean = 'QR'.Str::upper(Str::random(8));
+        }
+
+        return Str::limit($clean, 12, '');
+    }
+
+    private function merchantName(Business $business): string
+    {
+        $name = trim((string) $business->name);
+
+        return Str::limit($name !== '' ? $name : 'Akira Flow', 20, '');
     }
 
     private function sendDarajaStkPush(MpesaTransaction $transaction, MpesaConfig $config): void

@@ -6,7 +6,6 @@ import '../main.dart';
 import '../models/google_auth_exceptions.dart';
 import '../providers/auth_provider.dart';
 import '../services/google_auth_service.dart';
-import '../widgets/api_connection_card.dart';
 import '../widgets/google_sign_in_button.dart';
 import '../widgets/google_sign_in_setup_dialog.dart';
 import 'forgot_password_screen.dart';
@@ -159,9 +158,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: Colors.grey.shade600,
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    const ApiConnectionCard(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 28),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,

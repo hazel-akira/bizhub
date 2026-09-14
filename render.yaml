@@ -59,8 +59,20 @@ services:
         value: sync
       - key: CACHE_STORE
         value: database
-      - key: MAIL_MAILER
-        value: log
+      - key: MAIL_FROM_NAME
+        value: Akira Flow
+      - key: MAIL_FROM_ADDRESS
+        value: susanmwangi968@gmail.com
+      - key: MAIL_HOST
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
       - key: MPESA_BASE_URL
         value: https://sandbox.safaricom.co.ke
       - key: MPESA_CALLBACK_URL

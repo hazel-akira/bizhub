@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\RespondsWithJson;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ConfirmMpesaQrRequest;
+use App\Http\Requests\GenerateMpesaQrRequest;
 use App\Http\Requests\InitiateStkPushRequest;
 use App\Http\Requests\UpdateMpesaConfigRequest;
 use App\Models\MpesaConfig;
@@ -140,6 +142,67 @@ class MpesaController extends Controller
             'checkout_request_id' => $transaction->checkout_request_id,
             'status' => $transaction->status?->value,
         ]);
+    }
+
+    public function generateQr(GenerateMpesaQrRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $user = $request->user()->loadMissing('business');
+        $business = $user->business;
+        if (! $business) {
+            return $this->error('Complete business setup before collecting M-Pesa.', 422);
+        }
+
+        $result = $this->mpesa->createQrPayment(
+            $business,
+            (float) $validated['amount'],
+            $validated['reference'] ?? null,
+            $user,
+        );
+
+        $transaction = $result['transaction'];
+
+        return $this->success([
+            'id' => $transaction->id,
+            'checkout_request_id' => $transaction->checkout_request_id,
+            'amount' => $transaction->amount,
+            'status' => $transaction->status?->value,
+            'reference' => $transaction->reference,
+            'qr_code' => $result['qr_code'],
+            'shortcode' => $result['shortcode'],
+            'account_type' => $result['account_type'],
+            'merchant_name' => $result['merchant_name'],
+        ], 201);
+    }
+
+    public function confirmQr(ConfirmMpesaQrRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $transaction = $this->mpesa->confirmQrByReceipt(
+            $validated['checkout_request_id'],
+            $validated['mpesa_receipt_number'],
+            (int) $request->user()->business_id,
+        );
+
+        return $this->success([
+            'id' => $transaction->id,
+            'status' => $transaction->status?->value,
+            'reference' => $transaction->reference,
+            'mpesa_receipt_number' => $transaction->mpesa_receipt_number,
+            'amount' => $transaction->amount,
+        ]);
+    }
+
+    public function c2bConfirm(Request $request): JsonResponse
+    {
+        $this->mpesa->handleC2bConfirmation($request->all());
+
+        return response()->json(['ResultCode' => 0, 'ResultDesc' => 'Accepted']);
+    }
+
+    public function c2bValidate(): JsonResponse
+    {
+        return response()->json($this->mpesa->handleC2bValidation());
     }
 
     /**
