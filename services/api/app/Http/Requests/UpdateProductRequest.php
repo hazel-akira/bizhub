@@ -13,6 +13,13 @@ class UpdateProductRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->input('department') === '') {
+            $this->merge(['department' => null]);
+        }
+    }
+
     public function rules(): array
     {
         return [

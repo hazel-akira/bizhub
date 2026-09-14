@@ -12,6 +12,7 @@ import '../providers/dashboard_provider.dart';
 import 'inventory_screen.dart';
 import 'orders_screen.dart';
 import 'profit_tracker_screen.dart';
+import 'repair_tickets_screen.dart';
 import 'reports_screen.dart';
 import 'sales_screen.dart';
 
@@ -655,6 +656,24 @@ class _QuickActions extends StatelessWidget {
           icon: Icon(config.secondaryQuickActionIcon),
           label: Text(
             config.secondaryQuickActionLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+    }
+
+    if (access.canOpenRepairs && config.id == 'phone_repair') {
+      buttons.add(
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RepairTicketsScreen()),
+            );
+          },
+          icon: const Icon(Icons.phonelink_setup_outlined),
+          label: const Text(
+            'Repairs',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

@@ -781,7 +781,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         sellingPrice: double.parse(priceCtrl.text.trim()),
         costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
-        department: department,
+        department: department ?? '',
         expiryDate: expiry,
       );
       if (context.mounted) {
@@ -798,10 +798,63 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     }
   }
 
+  List<Widget> _departmentExpiryFields({
+    required BuildContext context,
+    required String? department,
+    required DateTime? expiry,
+    required ValueChanged<String?> onDepartment,
+    required ValueChanged<DateTime?> onExpiry,
+  }) {
+    return [
+      const SizedBox(height: 16),
+      Text(
+        'Department',
+        style: Theme.of(context).textTheme.labelLarge,
+      ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ChoiceChip(
+            label: const Text('General'),
+            selected: department == null,
+            onSelected: (_) => onDepartment(null),
+          ),
+          ...ProductDepartment.values.map(
+            (id) => ChoiceChip(
+              label: Text(ProductDepartment.label(id)),
+              selected: department == id,
+              onSelected: (_) => onDepartment(id),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: expiry ?? DateTime.now(),
+            firstDate: DateTime(2020),
+            lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+          );
+          if (picked != null) onExpiry(picked);
+        },
+        icon: const Icon(Icons.event_outlined),
+        label: Text(
+          expiry == null
+              ? 'Expiry date (bakery / perishable)'
+              : 'Expires ${AppLayout.dateLabel(expiry)}',
+        ),
+      ),
+    ];
+  }
+
   Future<void> _backupInventory(List<ApiProduct> products) async {
     final stamp = AppLayout.dateLabel(DateTime.now()).replaceAll('/', '-');
     final buffer = StringBuffer(
-      'name,selling_price,cost_price,stock,unit,active,added_at\n',
+      'name,department,selling_price,cost_price,stock,expiry,unit,active,added_at\n',
     );
     final sorted = [...products]..sort((a, b) {
         final aAt = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -812,9 +865,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       buffer.writeln(
         [
           BackupExport.cell(p.name),
+          BackupExport.cell(p.departmentLabel ?? p.department),
           BackupExport.cell(p.sellingPrice.toStringAsFixed(2)),
           BackupExport.cell(p.costPrice.toStringAsFixed(2)),
           BackupExport.cell(p.stockQuantity),
+          BackupExport.cell(
+            p.expiryDate == null ? '' : AppLayout.dateLabel(p.expiryDate!),
+          ),
           BackupExport.cell(p.unit),
           BackupExport.cell(p.isActive ? 'yes' : 'no'),
           BackupExport.cell(
@@ -949,7 +1006,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   final lowStock = products
                       .where((p) => p.stockQuantity <= 5)
                       .toList();
-                  final history = [...products]..sort((a, b) {
+                  final history = [...products]
+                      .where(
+                        (p) =>
+                            _departmentFilter == null ||
+                            p.department == _departmentFilter,
+                      )
+                      .toList()
+                    ..sort((a, b) {
                       final aAt =
                           a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
                       final bAt =
@@ -974,6 +1038,26 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             ),
                           ),
                         ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('All'),
+                            selected: _departmentFilter == null,
+                            onSelected: (_) =>
+                                setState(() => _departmentFilter = null),
+                          ),
+                          ...ProductDepartment.values.map(
+                            (id) => ChoiceChip(
+                              label: Text(ProductDepartment.label(id)),
+                              selected: _departmentFilter == id,
+                              onSelected: (_) =>
+                                  setState(() => _departmentFilter = id),
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         'History',

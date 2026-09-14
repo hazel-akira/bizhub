@@ -19,6 +19,7 @@ import 'screens/orders_screen.dart';
 import 'screens/inventory_screen.dart';
 import 'screens/production_screen.dart';
 import 'screens/profit_tracker_screen.dart';
+import 'screens/repair_tickets_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/sales_screen.dart';
 import 'screens/settings_screen.dart';
@@ -378,6 +379,19 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
                   title: const Text('Customers'),
                   selected: _activeSection == _NavSection.customers,
                   onTap: () => _setDrawerSection(_NavSection.customers),
+                ),
+              if (access.canOpenRepairs)
+                ListTile(
+                  leading: const Icon(Icons.phonelink_setup_outlined),
+                  title: const Text('Fundi wa simu'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const RepairTicketsScreen(),
+                      ),
+                    );
+                  },
                 ),
               if (access.canOpenStaff)
                 ListTile(
