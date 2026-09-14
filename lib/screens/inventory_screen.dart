@@ -6,6 +6,7 @@ import '../core/layout.dart';
 import '../models/api_product.dart';
 import '../models/global_category.dart';
 import '../models/global_product.dart';
+import '../models/product_department.dart';
 import '../providers/api_data_provider.dart';
 import '../providers/business_api_provider.dart';
 import '../providers/business_profile_provider.dart';
@@ -24,6 +25,7 @@ class InventoryScreen extends ConsumerStatefulWidget {
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final _imagePicker = ImagePicker();
+  String? _departmentFilter;
 
   String? _requiredSellingPrice(String? v) {
     final n = double.tryParse((v ?? '').trim());
@@ -48,6 +50,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ' • Buy ${cost.toStringAsFixed(0)}'
         ' • Profit ${profit.toStringAsFixed(0)}'
         ' • Stock: ${product.stockQuantity}'
+        '${product.departmentLabel != null ? ' • ${product.departmentLabel}' : ''}'
+        '${product.expiryDate != null ? ' • Exp ${AppLayout.dateLabel(product.expiryDate!)}' : ''}'
         '${product.unit != null ? ' • ${product.unit}' : ''}'
         '${product.isActive ? '' : ' • Inactive'}';
   }
@@ -454,6 +458,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final costCtrl = TextEditingController();
     final stockCtrl = TextEditingController(text: '0');
     final formKey = GlobalKey<FormState>();
+    var department = ProductDepartment.fromBusinessType(
+      ref.read(businessTypeConfigProvider).id,
+    );
+    DateTime? expiry;
 
     final palette = ref.read(businessThemePaletteProvider);
     final saved = await showCenteredDialog<bool>(
@@ -463,46 +471,55 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         palette: colors,
         title: 'Add ${global.name}',
         subtitle: 'From platform catalog • ${global.unit}',
-        body: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: priceCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+        body: StatefulBuilder(
+          builder: (ctx, setLocal) => Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: priceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Your selling price (KES)',
+                  ),
+                  validator: _requiredSellingPrice,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Your selling price (KES)',
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: costCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Buying price (KES)',
+                    helperText: 'What you paid — profit is selling minus this',
+                  ),
+                  validator: _requiredCostPrice,
                 ),
-                validator: _requiredSellingPrice,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: costCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: stockCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Opening stock'),
+                  validator: (v) {
+                    final n = int.tryParse(v ?? '');
+                    if (n == null || n < 0) return 'Enter a valid quantity';
+                    return null;
+                  },
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Buying price (KES)',
-                  helperText: 'What you paid — profit is selling minus this',
+                ..._departmentExpiryFields(
+                  context: ctx,
+                  department: department,
+                  expiry: expiry,
+                  onDepartment: (value) => setLocal(() => department = value),
+                  onExpiry: (value) => setLocal(() => expiry = value),
                 ),
-                validator: _requiredCostPrice,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: stockCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Opening stock'),
-                validator: (v) {
-                  final n = int.tryParse(v ?? '');
-                  if (n == null || n < 0) return 'Enter a valid quantity';
-                  return null;
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         actions: [
@@ -530,6 +547,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         sellingPrice: double.parse(priceCtrl.text.trim()),
         costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
+        department: department,
+        expiryDate: expiry,
       );
       if (context.mounted) {
         await _offerProductImage(context, product);
@@ -549,6 +568,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final costCtrl = TextEditingController();
     final stockCtrl = TextEditingController(text: '0');
     final formKey = GlobalKey<FormState>();
+    var department = ProductDepartment.fromBusinessType(
+      ref.read(businessTypeConfigProvider).id,
+    );
+    DateTime? expiry;
 
     final palette = ref.read(businessThemePaletteProvider);
     final saved = await showCenteredDialog<bool>(
@@ -558,53 +581,62 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         palette: colors,
         title: 'Custom product',
         subtitle: 'Create a product unique to your shop',
-        body: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: nameCtrl,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Product name'),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: priceCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+        body: StatefulBuilder(
+          builder: (ctx, setLocal) => Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(labelText: 'Product name'),
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Required' : null,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Selling price (KES)',
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: priceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Selling price (KES)',
+                  ),
+                  validator: _requiredSellingPrice,
                 ),
-                validator: _requiredSellingPrice,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: costCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: costCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Buying price (KES)',
+                    helperText: 'What you paid — profit is selling minus this',
+                  ),
+                  validator: _requiredCostPrice,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Buying price (KES)',
-                  helperText: 'What you paid — profit is selling minus this',
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: stockCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Stock quantity'),
+                  validator: (v) {
+                    final n = int.tryParse(v ?? '');
+                    if (n == null || n < 0) return 'Enter a valid quantity';
+                    return null;
+                  },
                 ),
-                validator: _requiredCostPrice,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: stockCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Stock quantity'),
-                validator: (v) {
-                  final n = int.tryParse(v ?? '');
-                  if (n == null || n < 0) return 'Enter a valid quantity';
-                  return null;
-                },
-              ),
-            ],
+                ..._departmentExpiryFields(
+                  context: ctx,
+                  department: department,
+                  expiry: expiry,
+                  onDepartment: (value) => setLocal(() => department = value),
+                  onExpiry: (value) => setLocal(() => expiry = value),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -632,6 +664,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         sellingPrice: double.parse(priceCtrl.text.trim()),
         costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
+        department: department,
+        expiryDate: expiry,
       );
       if (context.mounted) {
         await _offerProductImage(context, product);
@@ -661,6 +695,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final stockCtrl = TextEditingController(
       text: product.stockQuantity.toString(),
     );
+    var department = product.department;
+    var expiry = product.expiryDate;
     final formKey = GlobalKey<FormState>();
     final palette = ref.read(businessThemePaletteProvider);
     final saved = await showCenteredDialog<bool>(
@@ -670,45 +706,54 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         palette: colors,
         title: 'Edit ${product.name}',
         subtitle: 'Selling price minus buying price is the profit.',
-        body: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: priceCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+        body: StatefulBuilder(
+          builder: (ctx, setLocal) => Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: priceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Selling price (KES)',
+                  ),
+                  validator: _requiredSellingPrice,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Selling price (KES)',
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: costCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Buying price (KES)',
+                    helperText: 'What you paid — profit is selling minus this',
+                  ),
+                  validator: _requiredCostPrice,
                 ),
-                validator: _requiredSellingPrice,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: costCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: stockCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Stock quantity'),
+                  validator: (v) {
+                    final n = int.tryParse(v ?? '');
+                    if (n == null || n < 0) return 'Enter a valid quantity';
+                    return null;
+                  },
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Buying price (KES)',
-                  helperText: 'What you paid — profit is selling minus this',
+                ..._departmentExpiryFields(
+                  context: ctx,
+                  department: department,
+                  expiry: expiry,
+                  onDepartment: (value) => setLocal(() => department = value),
+                  onExpiry: (value) => setLocal(() => expiry = value),
                 ),
-                validator: _requiredCostPrice,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: stockCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Stock quantity'),
-                validator: (v) {
-                  final n = int.tryParse(v ?? '');
-                  if (n == null || n < 0) return 'Enter a valid quantity';
-                  return null;
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         actions: [
@@ -736,6 +781,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         sellingPrice: double.parse(priceCtrl.text.trim()),
         costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
+        department: department,
+        expiryDate: expiry,
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

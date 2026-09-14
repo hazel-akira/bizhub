@@ -23,6 +23,9 @@ enum BusinessType: string
     case SmallRestaurant = 'small_restaurant';
     case Pharmacy = 'pharmacy';
     case ElectronicsShop = 'electronics_shop';
+    case BabyShop = 'baby_shop';
+    case Bakery = 'bakery';
+    case PhoneRepair = 'phone_repair';
 
     public function label(): string
     {
@@ -46,6 +49,9 @@ enum BusinessType: string
             self::SmallRestaurant => 'Small Restaurant',
             self::Pharmacy => 'Pharmacies',
             self::ElectronicsShop => 'Electronic Shop',
+            self::BabyShop => 'Baby Shop',
+            self::Bakery => 'Bakery',
+            self::PhoneRepair => 'Phone Repair (Fundi wa simu)',
         };
     }
 
@@ -71,6 +77,9 @@ enum BusinessType: string
             self::SmallRestaurant => 'Sit-down meals, drinks, and table service.',
             self::Pharmacy => 'Medicines, health products, and personal care.',
             self::ElectronicsShop => 'Phones, computers, and electronic accessories.',
+            self::BabyShop => 'Diapers, formula, wipes, bottles, and baby care.',
+            self::Bakery => 'Bread, mandazi, cakes, and other baked goods with expiry tracking.',
+            self::PhoneRepair => 'Phone diagnosis, spare parts, labour, and Fundi wa simu repair jobs.',
         };
     }
 
@@ -96,6 +105,9 @@ enum BusinessType: string
             self::SmallRestaurant => '🍛',
             self::Pharmacy => '💊',
             self::ElectronicsShop => '📱',
+            self::BabyShop => '🍼',
+            self::Bakery => '🍞',
+            self::PhoneRepair => '🔧',
         };
     }
 
@@ -108,6 +120,7 @@ enum BusinessType: string
             self::Salon, self::Cybercafe, self::Agrovet, self::HardwareStore => 'Service & Artisan',
             self::FoodVendor, self::SmallRestaurant => 'Food Service',
             self::Pharmacy, self::ElectronicsShop => 'Other',
+            self::BabyShop, self::Bakery, self::PhoneRepair => 'Baby, Bakery & Repairs',
         };
     }
 
@@ -134,6 +147,9 @@ enum BusinessType: string
             self::SmallRestaurant => ['Appetizers', 'Main Course', 'Drinks', 'Desserts'],
             self::Pharmacy => ['Medicines', 'OTC', 'Personal Care', 'Supplements'],
             self::ElectronicsShop => ['Phones', 'Computers', 'Accessories', 'Appliances'],
+            self::BabyShop => ['Diapers', 'Feeding', 'Bath & Care', 'Toys'],
+            self::Bakery => ['Bread', 'Snacks', 'Cakes', 'Ingredients'],
+            self::PhoneRepair => ['Screens', 'Batteries', 'Charging', 'Covers', 'Labour'],
         };
     }
 
@@ -160,6 +176,9 @@ enum BusinessType: string
             self::SmallRestaurant => ['Ingredients', 'Gas', 'Rent', 'Labour'],
             self::Pharmacy => ['Stock', 'Licenses', 'Rent', 'Utilities'],
             self::ElectronicsShop => ['Stock', 'Rent', 'Warranty', 'Utilities'],
+            self::BabyShop => ['Stock', 'Rent', 'Packaging', 'Transport'],
+            self::Bakery => ['Flour', 'Gas', 'Packaging', 'Labour', 'Rent'],
+            self::PhoneRepair => ['Spare parts', 'Tools', 'Rent', 'Labour'],
         };
     }
 
@@ -281,6 +300,8 @@ enum BusinessType: string
                 GlobalCatalogCategory::FoodAndSnacks->value,
                 GlobalCatalogCategory::HouseholdItems->value,
                 GlobalCatalogCategory::FreshProduce->value,
+                GlobalCatalogCategory::BabyProducts->value,
+                GlobalCatalogCategory::PhoneRepairParts->value,
             ],
             self::Wholesale => [
                 GlobalCatalogCategory::WholesalePacks->value,
@@ -339,6 +360,20 @@ enum BusinessType: string
             ],
             self::ElectronicsShop => [
                 GlobalCatalogCategory::ElectronicsAndAccessories->value,
+            ],
+            self::BabyShop => [
+                GlobalCatalogCategory::BabyProducts->value,
+                GlobalCatalogCategory::HouseholdItems->value,
+            ],
+            self::Bakery => [
+                GlobalCatalogCategory::FoodAndSnacks->value,
+                GlobalCatalogCategory::Beverages->value,
+                GlobalCatalogCategory::Groceries->value,
+            ],
+            self::PhoneRepair => [
+                GlobalCatalogCategory::PhoneRepairParts->value,
+                GlobalCatalogCategory::ElectronicsAndAccessories->value,
+                GlobalCatalogCategory::Services->value,
             ],
         };
     }

@@ -2,6 +2,7 @@ import '../database/app_database.dart';
 import '../models/api_dashboard.dart';
 import '../models/api_expense.dart';
 import '../models/api_product.dart';
+import '../models/api_repair_ticket.dart';
 import '../models/api_sale.dart';
 import '../models/auth_user.dart';
 import '../models/global_category.dart';
@@ -294,6 +295,8 @@ class BusinessApiService {
     required double costPrice,
     int stockQuantity = 0,
     int reorderLevel = 5,
+    String? department,
+    DateTime? expiryDate,
   }) async {
     final json = await _api.post(
       '/api/products/from-global',
@@ -304,6 +307,9 @@ class BusinessApiService {
         'cost_price': costPrice,
         'stock_quantity': stockQuantity,
         'reorder_level': reorderLevel,
+        if (department != null) 'department': department,
+        if (expiryDate != null)
+          'expiry_date': expiryDate.toIso8601String().split('T').first,
       },
     );
     return ApiProduct.fromJson(json['data'] as Map<String, dynamic>);
@@ -314,6 +320,8 @@ class BusinessApiService {
     required double sellingPrice,
     required double costPrice,
     int stockQuantity = 0,
+    String? department,
+    DateTime? expiryDate,
   }) async {
     final json = await _api.post(
       '/api/products/custom',
@@ -324,6 +332,9 @@ class BusinessApiService {
         'cost_price': costPrice,
         'stock_quantity': stockQuantity,
         'is_active': true,
+        if (department != null) 'department': department,
+        if (expiryDate != null)
+          'expiry_date': expiryDate.toIso8601String().split('T').first,
       },
     );
     return ApiProduct.fromJson(json['data'] as Map<String, dynamic>);
@@ -350,6 +361,8 @@ class BusinessApiService {
     double? costPrice,
     int? stockQuantity,
     bool? isActive,
+    String? department,
+    DateTime? expiryDate,
   }) async {
     final body = <String, dynamic>{};
     if (name != null) body['name'] = name;
@@ -357,6 +370,12 @@ class BusinessApiService {
     if (costPrice != null) body['cost_price'] = costPrice;
     if (stockQuantity != null) body['stock_quantity'] = stockQuantity;
     if (isActive != null) body['is_active'] = isActive;
+    if (department != null) {
+      body['department'] = department.isEmpty ? null : department;
+    }
+    if (expiryDate != null) {
+      body['expiry_date'] = expiryDate.toIso8601String().split('T').first;
+    }
 
     final json = await _api.put(
       '/api/products/$productId',
@@ -468,5 +487,68 @@ class BusinessApiService {
   Future<AuthUser> deactivateStaff(int staffId) async {
     final json = await _api.delete('/api/staff/$staffId', auth: true);
     return AuthUser.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<List<ApiRepairTicket>> getRepairTickets({String? status}) async {
+    final path = status == null || status.isEmpty
+        ? '/api/repair-tickets'
+        : '/api/repair-tickets?status=$status';
+    final json = await _api.get(path, auth: true);
+    final list = json['data'] as List<dynamic>? ?? [];
+    return list
+        .map((e) => ApiRepairTicket.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<ApiRepairTicket> createRepairTicket({
+    required String customerName,
+    required String phoneModel,
+    required String issueDescription,
+    String? customerPhone,
+    String? sparePartsUsed,
+    double laborCost = 0,
+  }) async {
+    final json = await _api.post(
+      '/api/repair-tickets',
+      auth: true,
+      body: {
+        'customer_name': customerName,
+        'phone_model': phoneModel,
+        'issue_description': issueDescription,
+        'labor_cost': laborCost,
+        if (customerPhone != null && customerPhone.isNotEmpty)
+          'customer_phone': customerPhone,
+        if (sparePartsUsed != null && sparePartsUsed.isNotEmpty)
+          'spare_parts_used': sparePartsUsed,
+      },
+    );
+    return ApiRepairTicket.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<ApiRepairTicket> updateRepairTicket({
+    required int ticketId,
+    String? customerName,
+    String? customerPhone,
+    String? phoneModel,
+    String? issueDescription,
+    String? sparePartsUsed,
+    double? laborCost,
+    String? status,
+  }) async {
+    final body = <String, dynamic>{};
+    if (customerName != null) body['customer_name'] = customerName;
+    if (customerPhone != null) body['customer_phone'] = customerPhone;
+    if (phoneModel != null) body['phone_model'] = phoneModel;
+    if (issueDescription != null) body['issue_description'] = issueDescription;
+    if (sparePartsUsed != null) body['spare_parts_used'] = sparePartsUsed;
+    if (laborCost != null) body['labor_cost'] = laborCost;
+    if (status != null) body['status'] = status;
+
+    final json = await _api.put(
+      '/api/repair-tickets/$ticketId',
+      auth: true,
+      body: body,
+    );
+    return ApiRepairTicket.fromJson(json['data'] as Map<String, dynamic>);
   }
 }

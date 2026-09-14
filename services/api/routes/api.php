@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\GlobalProductController;
 use App\Http\Controllers\Api\MpesaController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\RepairTicketController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\ShopOrderController;
 use App\Http\Controllers\Api\StaffController;
@@ -109,6 +110,16 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/products/{product}', [ProductController::class, 'destroy']);
         });
         Route::put('/products/{product}', [ProductController::class, 'update']);
+
+        Route::get('/repair-tickets', [RepairTicketController::class, 'index'])
+            ->middleware('permission:view_sales');
+        Route::get('/repair-tickets/{repairTicket}', [RepairTicketController::class, 'show'])
+            ->middleware('permission:view_sales');
+        Route::middleware('permission:sell')->group(function () {
+            Route::post('/repair-tickets', [RepairTicketController::class, 'store']);
+            Route::put('/repair-tickets/{repairTicket}', [RepairTicketController::class, 'update']);
+            Route::delete('/repair-tickets/{repairTicket}', [RepairTicketController::class, 'destroy']);
+        });
 
         Route::middleware('permission:view_sales')->group(function () {
             Route::get('/sales', [SaleController::class, 'index']);

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProductDepartment;
 use App\Models\Concerns\BelongsToBusiness;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +24,8 @@ class Product extends Model
         'reorder_level',
         'barcode',
         'image_path',
+        'department',
+        'expiry_date',
         'is_active',
     ];
 
@@ -31,6 +34,8 @@ class Product extends Model
         return [
             'cost_price' => 'decimal:2',
             'selling_price' => 'decimal:2',
+            'expiry_date' => 'date',
+            'department' => ProductDepartment::class,
             'is_active' => 'boolean',
         ];
     }

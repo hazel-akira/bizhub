@@ -10,6 +10,9 @@ class ApiProduct {
     this.unit,
     this.imagePath,
     this.costPrice = 0,
+    this.department,
+    this.departmentLabel,
+    this.expiryDate,
     this.createdAt,
   });
 
@@ -23,6 +26,9 @@ class ApiProduct {
   final bool isFromGlobalCatalog;
   final String? unit;
   final String? imagePath;
+  final String? department;
+  final String? departmentLabel;
+  final DateTime? expiryDate;
   final DateTime? createdAt;
 
   factory ApiProduct.fromJson(Map<String, dynamic> json) {
@@ -37,6 +43,9 @@ class ApiProduct {
       isFromGlobalCatalog: json['is_from_global_catalog'] as bool? ?? false,
       unit: json['unit'] as String?,
       imagePath: json['image_path'] as String?,
+      department: json['department'] as String?,
+      departmentLabel: json['department_label'] as String?,
+      expiryDate: DateTime.tryParse('${json['expiry_date'] ?? ''}'),
       createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
     );
   }

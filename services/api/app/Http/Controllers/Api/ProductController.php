@@ -8,6 +8,7 @@ use App\Http\Requests\StoreCustomProductRequest;
 use App\Http\Requests\StoreProductFromGlobalRequest;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
+use App\Enums\ProductDepartment;
 use App\Models\GlobalProduct;
 use App\Models\Product;
 use App\Services\GlobalCatalogService;
@@ -58,6 +59,7 @@ class ProductController extends Controller
     {
         $product = Product::create([
             ...$request->validated(),
+            ...$this->departmentDefaults($request, $request->validated()),
             'business_id' => $request->user()->business_id,
             'global_product_id' => null,
             'is_active' => $request->boolean('is_active', true),
@@ -106,6 +108,7 @@ class ProductController extends Controller
             'stock_quantity' => $validated['stock_quantity'] ?? 0,
             'reorder_level' => $validated['reorder_level'] ?? 5,
             'is_active' => true,
+            ...$this->departmentDefaults($request, $validated),
         ]);
 
         return $this->success(
@@ -120,6 +123,7 @@ class ProductController extends Controller
 
         $product = Product::create([
             ...$validated,
+            ...$this->departmentDefaults($request, $validated),
             'business_id' => $request->user()->business_id,
             'global_product_id' => null,
             'is_active' => $request->boolean('is_active', true),
@@ -206,11 +210,18 @@ class ProductController extends Controller
             'name' => $product->name,
             'description' => $product->description,
             'category_id' => $product->category_id,
+            'department' => $product->department instanceof ProductDepartment
+                ? $product->department->value
+                : $product->department,
+            'department_label' => $product->department instanceof ProductDepartment
+                ? $product->department->label()
+                : null,
             'cost_price' => $canSeeCost ? $product->cost_price : null,
             'selling_price' => $product->selling_price,
             'price' => (int) $product->selling_price,
             'stock_quantity' => $product->stock_quantity,
             'reorder_level' => $product->reorder_level,
+            'expiry_date' => $product->expiry_date?->toDateString(),
             'barcode' => $product->barcode,
             'unit' => $product->globalProduct?->unit,
             'is_active' => (bool) $product->is_active,
@@ -223,6 +234,24 @@ class ProductController extends Controller
             'image_path' => $images->publicUrl($product->image_path),
             'created_at' => $product->created_at?->toIso8601String(),
             'updated_at' => $product->updated_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array{department: string|null, expiry_date: mixed}
+     */
+    private function departmentDefaults(Request $request, array $validated): array
+    {
+        $department = $validated['department'] ?? null;
+        if ($department === null || $department === '') {
+            $type = $request->user()->loadMissing('business')->business?->business_type;
+            $department = ProductDepartment::fromBusinessType($type)?->value;
+        }
+
+        return [
+            'department' => $department,
+            'expiry_date' => $validated['expiry_date'] ?? null,
         ];
     }
 }

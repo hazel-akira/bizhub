@@ -39,6 +39,8 @@ class SchemaOverviewService
         ['from' => 'order_items', 'from_col' => 'order_id', 'to' => 'orders', 'to_col' => 'id'],
         ['from' => 'order_items', 'from_col' => 'product_id', 'to' => 'products', 'to_col' => 'id'],
         ['from' => 'mpesa_transactions', 'from_col' => 'order_id', 'to' => 'orders', 'to_col' => 'id'],
+        ['from' => 'repair_tickets', 'from_col' => 'business_id', 'to' => 'businesses', 'to_col' => 'id'],
+        ['from' => 'repair_tickets', 'from_col' => 'user_id', 'to' => 'users', 'to_col' => 'id'],
     ];
 
     /** @var list<string> */
@@ -63,6 +65,7 @@ class SchemaOverviewService
         'orders',
         'order_items',
         'mpesa_transactions',
+        'repair_tickets',
     ];
 
     /** @var array<string, string> */
@@ -74,7 +77,8 @@ class SchemaOverviewService
         'categories' => 'Product groupings per business (e.g. Samosas, Drinks).',
         'global_categories' => 'Platform-wide product categories shared by all businesses.',
         'global_products' => 'Shared catalog items (Coca Cola, Rice, etc.) managed by the platform.',
-        'products' => 'Business inventory — may link to global_products or be fully custom.',
+        'products' => 'Business inventory — department (Baby Shop, Bakery, Phone Repair), optional expiry_date for bakery, may link to global_products.',
+        'repair_tickets' => 'Fundi wa simu jobs: customer, phone model, issue, spare parts, labour cost, Pending/Fixed/Collected.',
         'customers' => 'People who buy from the business (in-store or online).',
         'suppliers' => 'Vendors you purchase stock from.',
         'sales' => 'A completed or pending in-store sale (invoice header).',
@@ -210,6 +214,8 @@ erDiagram
     orders ||--|{ order_items : contains
     products ||--o{ order_items : ordered_as
     orders ||--o| mpesa_transactions : paid_via
+    businesses ||--o{ repair_tickets : tracks
+    users ||--o{ repair_tickets : logs
 MERMAID;
     }
 }

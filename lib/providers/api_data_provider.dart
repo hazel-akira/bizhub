@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/api_expense.dart';
 import '../models/api_product.dart';
+import '../models/api_repair_ticket.dart';
 import '../models/api_sale.dart';
 import '../models/global_category.dart';
 import '../models/global_product.dart';
@@ -147,15 +148,19 @@ final createApiSaleWithItemsProvider = Provider<
 final createApiProductProvider = Provider<
     Future<ApiProduct> Function({
   required String name,
-  required double sellingPrice,
-  required double costPrice,
-  int stockQuantity,
+    required double sellingPrice,
+    required double costPrice,
+    int stockQuantity,
+    String? department,
+    DateTime? expiryDate,
 })>((ref) {
   return ({
     required String name,
     required double sellingPrice,
     required double costPrice,
     int stockQuantity = 0,
+    String? department,
+    DateTime? expiryDate,
   }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
@@ -165,6 +170,8 @@ final createApiProductProvider = Provider<
       sellingPrice: sellingPrice,
       costPrice: costPrice,
       stockQuantity: stockQuantity,
+      department: department,
+      expiryDate: expiryDate,
     );
 
     ref.invalidate(apiProductsProvider);
@@ -179,12 +186,16 @@ final addProductFromGlobalProvider = Provider<
   required double sellingPrice,
   required double costPrice,
   int stockQuantity,
+  String? department,
+  DateTime? expiryDate,
 })>((ref) {
   return ({
     required int globalProductId,
     required double sellingPrice,
     required double costPrice,
     int stockQuantity = 0,
+    String? department,
+    DateTime? expiryDate,
   }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
@@ -194,6 +205,8 @@ final addProductFromGlobalProvider = Provider<
       sellingPrice: sellingPrice,
       stockQuantity: stockQuantity,
       costPrice: costPrice,
+      department: department,
+      expiryDate: expiryDate,
     );
 
     ref.invalidate(apiProductsProvider);
@@ -266,6 +279,8 @@ final updateApiProductProvider = Provider<
     double? costPrice,
     int? stockQuantity,
     bool? isActive,
+    String? department,
+    DateTime? expiryDate,
   })>((ref) {
   return ({
     required int productId,
@@ -274,6 +289,8 @@ final updateApiProductProvider = Provider<
     double? costPrice,
     int? stockQuantity,
     bool? isActive,
+    String? department,
+    DateTime? expiryDate,
   }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
@@ -285,10 +302,77 @@ final updateApiProductProvider = Provider<
       costPrice: costPrice,
       stockQuantity: stockQuantity,
       isActive: isActive,
+      department: department,
+      expiryDate: expiryDate,
     );
 
     ref.invalidate(apiProductsProvider);
     ref.invalidate(apiDashboardProvider);
     return product;
+  };
+});
+
+final apiRepairTicketsProvider =
+    FutureProvider<List<ApiRepairTicket>>((ref) async {
+  final api = ref.watch(businessApiProvider);
+  if (api == null) return [];
+  return api.getRepairTickets();
+});
+
+final createRepairTicketProvider = Provider<
+    Future<ApiRepairTicket> Function({
+  required String customerName,
+  required String phoneModel,
+  required String issueDescription,
+  String? customerPhone,
+  String? sparePartsUsed,
+  double laborCost,
+})>((ref) {
+  return ({
+    required String customerName,
+    required String phoneModel,
+    required String issueDescription,
+    String? customerPhone,
+    String? sparePartsUsed,
+    double laborCost = 0,
+  }) async {
+    final api = ref.read(businessApiProvider);
+    if (api == null) throw Exception('Not signed in');
+    final ticket = await api.createRepairTicket(
+      customerName: customerName,
+      phoneModel: phoneModel,
+      issueDescription: issueDescription,
+      customerPhone: customerPhone,
+      sparePartsUsed: sparePartsUsed,
+      laborCost: laborCost,
+    );
+    ref.invalidate(apiRepairTicketsProvider);
+    return ticket;
+  };
+});
+
+final updateRepairTicketProvider = Provider<
+    Future<ApiRepairTicket> Function({
+  required int ticketId,
+  String? sparePartsUsed,
+  double? laborCost,
+  String? status,
+})>((ref) {
+  return ({
+    required int ticketId,
+    String? sparePartsUsed,
+    double? laborCost,
+    String? status,
+  }) async {
+    final api = ref.read(businessApiProvider);
+    if (api == null) throw Exception('Not signed in');
+    final ticket = await api.updateRepairTicket(
+      ticketId: ticketId,
+      sparePartsUsed: sparePartsUsed,
+      laborCost: laborCost,
+      status: status,
+    );
+    ref.invalidate(apiRepairTicketsProvider);
+    return ticket;
   };
 });

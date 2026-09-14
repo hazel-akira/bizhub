@@ -38,6 +38,9 @@ class BusinessTypeOption {
       'small_restaurant',
       'pharmacy',
       'electronics_shop',
+      'baby_shop',
+      'bakery',
+      'phone_repair',
     ];
     final copy = [...types];
     copy.sort((a, b) {
@@ -82,6 +85,9 @@ class BusinessTypeOption {
     'small_restaurant': '🍛',
     'pharmacy': '💊',
     'electronics_shop': '📱',
+    'baby_shop': '🍼',
+    'bakery': '🍞',
+    'phone_repair': '🔧',
   };
 
   static const _displayLabels = <String, String>{
@@ -100,5 +106,8 @@ class BusinessTypeOption {
     'cybercafe': 'Cyber Cafe',
     'agrovet': 'Agrovets',
     'hardware_store': 'Hardware Store',
+    'baby_shop': 'Baby Shop',
+    'bakery': 'Bakery',
+    'phone_repair': 'Phone Repair (Fundi wa simu)',
   };
 }

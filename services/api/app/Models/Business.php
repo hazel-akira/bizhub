@@ -44,4 +44,9 @@ class Business extends Model
     {
         return $this->hasMany(MpesaTransaction::class);
     }
+
+    public function repairTickets(): HasMany
+    {
+        return $this->hasMany(RepairTicket::class);
+    }
 }
