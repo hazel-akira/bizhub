@@ -50,6 +50,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/99-laravel.ini
 COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+COPY docker/php/zz-www.conf /usr/local/etc/php-fpm.d/zz-www.conf
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/scripts/entrypoint.sh /usr/local/bin/entrypoint.sh

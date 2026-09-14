@@ -199,7 +199,7 @@ class AuthController extends Controller
             Log::critical('Password reset requested but no mailer is configured.');
 
             return $this->error(
-                'Password reset email is not configured on the server. Set RESEND_API_KEY or SMTP mail credentials, then try again.',
+                'Password reset email is not configured. On Render → akira-flow-api set MAIL_USERNAME and MAIL_PASSWORD (Gmail App Password), then restart the service.',
                 503,
             );
         }

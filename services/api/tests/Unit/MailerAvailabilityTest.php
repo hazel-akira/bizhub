@@ -37,4 +37,26 @@ class MailerAvailabilityTest extends TestCase
 
         $this->assertSame('resend', config('mail.default'));
     }
+
+    public function test_reads_lowercase_env_aliases(): void
+    {
+        config([
+            'mail.default' => 'log',
+            'services.resend.key' => null,
+            'mail.mailers.smtp.host' => 'smtp.gmail.com',
+            'mail.mailers.smtp.username' => '',
+            'mail.mailers.smtp.password' => '',
+        ]);
+
+        $_ENV['mail_username'] = 'owner@example.com';
+        $_ENV['mail_password'] = 'app-password';
+
+        try {
+            MailerAvailability::configure();
+            $this->assertSame('smtp', config('mail.default'));
+            $this->assertSame('owner@example.com', config('mail.mailers.smtp.username'));
+        } finally {
+            unset($_ENV['mail_username'], $_ENV['mail_password']);
+        }
+    }
 }

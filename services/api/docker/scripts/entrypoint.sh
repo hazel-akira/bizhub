@@ -122,4 +122,13 @@ if grep -q 'listen 8080;' /etc/nginx/conf.d/default.conf 2>/dev/null; then
 fi
 
 echo "[entrypoint] Ready — handing off to supervisord."
+
+if [ -n "${RESEND_API_KEY:-}" ]; then
+    echo "[entrypoint] Mail: RESEND_API_KEY is set."
+elif [ -n "${MAIL_USERNAME:-${mail_username:-}}" ] && [ -n "${MAIL_PASSWORD:-${mail_password:-}}" ]; then
+    echo "[entrypoint] Mail: SMTP username/password are set."
+else
+    echo "[entrypoint] WARNING: MAIL_USERNAME and MAIL_PASSWORD are empty. Forgot-password emails will fail until they are set on this Render service."
+fi
+
 exec "$@"

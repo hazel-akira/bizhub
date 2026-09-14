@@ -67,6 +67,8 @@ services:
         value: smtp.gmail.com
       - key: MAIL_PORT
         value: "587"
+      - key: MAIL_ENCRYPTION
+        value: tls
       - key: MAIL_USERNAME
         sync: false
       - key: MAIL_PASSWORD
