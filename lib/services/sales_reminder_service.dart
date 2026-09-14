@@ -1,5 +1,4 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -60,14 +59,27 @@ class SalesReminderService {
     await iosImpl?.requestPermissions(alert: true, badge: true, sound: true);
 
     tz.initializeTimeZones();
-    try {
-      final zone = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(zone.identifier));
-    } catch (_) {
-      tz.setLocalLocation(tz.UTC);
-    }
+    tz.setLocalLocation(_localTimeZone());
 
     _initialized = true;
+  }
+
+  static tz.Location _localTimeZone() {
+    final offset = DateTime.now().timeZoneOffset;
+    const preferred = 'Africa/Nairobi';
+    try {
+      final nairobi = tz.getLocation(preferred);
+      if (tz.TZDateTime.now(nairobi).timeZoneOffset == offset) {
+        return nairobi;
+      }
+    } catch (_) {}
+
+    for (final location in tz.timeZoneDatabase.locations.values) {
+      if (tz.TZDateTime.now(location).timeZoneOffset == offset) {
+        return location;
+      }
+    }
+    return tz.UTC;
   }
 
   Future<SalesReminderSettings> getSettings() async {
