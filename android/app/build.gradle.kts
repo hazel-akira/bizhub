@@ -70,3 +70,15 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
+
+// #region agent log
+try {
+    file("/home/eng-susan/Desktop/Software Projects/M-Apps/bizhub/.cursor/debug-910678.log")
+        .appendText(
+            """{"sessionId":"910678","hypothesisId":"B","runId":"agp9-upgrade","location":"android/app/build.gradle.kts","message":"resolved gradle version","data":{"gradleVersion":"${gradle.gradleVersion}"},"timestamp":${System.currentTimeMillis()}}""" +
+                "\n",
+        )
+} catch (_: Exception) {
+}
+// #endregion
+
