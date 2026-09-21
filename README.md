@@ -71,15 +71,15 @@ The backend API lives in `[services/api/](services/api/)`. It powers auth, the w
 
 Verify: open [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health) — should return `{"ok":true,...}`.
 
-**Flutter app:** on the login screen, use **API connection → Test**. Default URLs:
+**Flutter app:** defaults to the Render API (`https://akira-flow-api.onrender.com`). Override only if needed:
 
-- Linux desktop: `http://127.0.0.1:8000`
-- Android emulator: `http://10.0.2.2:8000`
-- Physical phone: `http://YOUR_PC_LAN_IP:8000`
+```bash
+flutter run --dart-define=API_BASE_URL=https://akira-flow-api.onrender.com
+```
 
-See `[services/api/README.md](services/api/README.md)` for database setup and endpoints.
+See `[services/api/README.md](services/api/README.md)` for local API setup and endpoints.
 
-**Production:** Play Store for the Android app; Fly.io + Neon for the API. See `[DEPLOY.md](DEPLOY.md)` and the Play Console fill-in guide `[store/play/PLAY_STORE_LISTING.md](store/play/PLAY_STORE_LISTING.md)` (package name, listing copy, and graphics).
+**Production:** Play Store for the Android app; Render + Neon for the API. See `[docs/SYSTEM_CHECKUP.md](docs/SYSTEM_CHECKUP.md)` and the Play Console fill-in guide `[store/play/PLAY_STORE_LISTING.md](store/play/PLAY_STORE_LISTING.md)`.
 
 ---
 
@@ -96,15 +96,14 @@ cp android/key.properties.example android/key.properties
 
 ```bash
 flutter build appbundle --release \
-  --dart-define=API_BASE_URL=https://YOUR_API_DOMAIN \
+  --dart-define=API_BASE_URL=https://akira-flow-api.onrender.com \
   --dart-define=GOOGLE_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
 ```
 
 Notes:
 
 - Release builds require `android/key.properties`.
-- Production endpoint should be HTTPS.
-- In release mode, API connection override is disabled in-app.
+- Default API is Render (`akira-flow-api.onrender.com`); pass `--dart-define` only to override.
 - Set `GOOGLE_CLIENT_IDS` on the API to the same Web client ID (and Android/iOS IDs if used).
 
 ### Google Sign-In setup
@@ -125,17 +124,12 @@ Notes:
 
 ## Docs
 
-- `[DEPLOY.md](DEPLOY.md)` — Fly.io API + Google Play
+- `[docs/SYSTEM_CHECKUP.md](docs/SYSTEM_CHECKUP.md)` — Render API health and env checklist
 - `[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)` — Project structure and features
+- `[store/play/PLAY_STORE_LISTING.md](store/play/PLAY_STORE_LISTING.md)` — Google Play listing
 
-
-
+```bash
 flutter run \
-
-  --dart-define=API_BASE_URL=[https://akira-flow-api.onrender.com/](https://akira-flow-api.onrender.com/)
-
-  --dart-define=GOOGLE_WEB_CLIENT_ID=[445326255543-m8hh5al6s529h1c97h4v1ueif4e0hdgd.apps.googleusercontent.com](http://445326255543-m8hh5al6s529h1c97h4v1ueif4e0hdgd.apps.googleusercontent.com)
-
-  flutter run \
   --dart-define=API_BASE_URL=https://akira-flow-api.onrender.com \
   --dart-define=GOOGLE_WEB_CLIENT_ID=445326255543-m8hh5al6s529h1c97h4v1ueif4e0hdgd.apps.googleusercontent.com
+```

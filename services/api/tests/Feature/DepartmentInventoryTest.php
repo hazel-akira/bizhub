@@ -32,9 +32,28 @@ class DepartmentInventoryTest extends TestCase
         return $user;
     }
 
-    public function test_custom_product_saves_department_and_expiry(): void
+    public function test_bakery_saves_expiry_and_forces_bakery_department(): void
     {
-        $this->actingAsShop();
+        $this->actingAsShop('bakery');
+
+        $this->postJson('/api/products/custom', [
+            'name' => 'Queen cake',
+            'cost_price' => 40,
+            'selling_price' => 80,
+            'stock_quantity' => 12,
+            'department' => 'phone_repair',
+            'expiry_date' => '2026-09-16',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.name', 'Queen cake')
+            ->assertJsonPath('data.department', 'bakery')
+            ->assertJsonPath('data.department_label', 'Bakery')
+            ->assertJsonPath('data.expiry_date', '2026-09-16');
+    }
+
+    public function test_grocery_cannot_save_bakery_department_or_expiry(): void
+    {
+        $this->actingAsShop('grocery_shop');
 
         $this->postJson('/api/products/custom', [
             'name' => 'Queen cake',
@@ -45,17 +64,35 @@ class DepartmentInventoryTest extends TestCase
             'expiry_date' => '2026-09-16',
         ])
             ->assertCreated()
-            ->assertJsonPath('data.name', 'Queen cake')
-            ->assertJsonPath('data.department', 'bakery')
-            ->assertJsonPath('data.department_label', 'Bakery')
-            ->assertJsonPath('data.expiry_date', '2026-09-16');
+            ->assertJsonPath('data.department', null)
+            ->assertJsonPath('data.department_label', null)
+            ->assertJsonPath('data.expiry_date', null);
 
-        $this->assertDatabaseHas('products', [
-            'name' => 'Queen cake',
-            'department' => 'bakery',
-        ]);
         $saved = Product::query()->where('name', 'Queen cake')->first();
-        $this->assertSame('2026-09-16', $saved?->expiry_date?->toDateString());
+        $this->assertNull($saved?->department);
+        $this->assertNull($saved?->expiry_date);
+    }
+
+    public function test_phone_repair_ignores_expiry_and_forces_own_department(): void
+    {
+        $this->actingAsShop('phone_repair');
+
+        $this->postJson('/api/products/custom', [
+            'name' => 'Phone screen',
+            'cost_price' => 800,
+            'selling_price' => 1500,
+            'stock_quantity' => 4,
+            'department' => 'bakery',
+            'expiry_date' => '2026-09-16',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.department', 'phone_repair')
+            ->assertJsonPath('data.department_label', 'Phone Repair')
+            ->assertJsonPath('data.expiry_date', null);
+
+        $saved = Product::query()->where('name', 'Phone screen')->first();
+        $this->assertSame('phone_repair', $saved?->department?->value);
+        $this->assertNull($saved?->expiry_date);
     }
 
     public function test_bakery_business_defaults_department(): void
@@ -72,7 +109,7 @@ class DepartmentInventoryTest extends TestCase
             ->assertJsonPath('data.department', 'bakery');
     }
 
-    public function test_product_update_can_change_department(): void
+    public function test_grocery_cannot_switch_product_into_another_department(): void
     {
         $user = $this->actingAsShop();
         $product = Product::create([
@@ -92,7 +129,29 @@ class DepartmentInventoryTest extends TestCase
             'stock_quantity' => 8,
         ])
             ->assertOk()
-            ->assertJsonPath('data.department', 'phone_repair');
+            ->assertJsonPath('data.department', null);
+
+        $this->assertNull($product->fresh()?->department);
+    }
+
+    public function test_phone_repair_hides_leftover_bakery_expiry_on_read(): void
+    {
+        $user = $this->actingAsShop('phone_repair');
+        $product = Product::create([
+            'business_id' => $user->business_id,
+            'name' => 'Charging port',
+            'cost_price' => 100,
+            'selling_price' => 300,
+            'stock_quantity' => 2,
+            'department' => 'bakery',
+            'expiry_date' => '2026-09-16',
+            'is_active' => true,
+        ]);
+
+        $this->getJson('/api/products/'.$product->id)
+            ->assertOk()
+            ->assertJsonPath('data.department', 'phone_repair')
+            ->assertJsonPath('data.expiry_date', null);
     }
 
     public function test_business_types_include_new_departments(): void

@@ -663,7 +663,7 @@ class _QuickActions extends StatelessWidget {
       );
     }
 
-    if (access.canOpenRepairs && config.id == 'phone_repair') {
+    if (access.canOpenRepairs && config.showRepairsNav) {
       buttons.add(
         OutlinedButton.icon(
           onPressed: () {

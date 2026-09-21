@@ -187,6 +187,11 @@ enum BusinessType: string
         return in_array($this, [self::FoodVendor, self::SmallRestaurant], true);
     }
 
+    public function tracksExpiry(): bool
+    {
+        return $this === self::Bakery;
+    }
+
     /**
      * Optional starter products. Prices stay 0 so the owner sets them in Inventory.
      *
@@ -300,8 +305,6 @@ enum BusinessType: string
                 GlobalCatalogCategory::FoodAndSnacks->value,
                 GlobalCatalogCategory::HouseholdItems->value,
                 GlobalCatalogCategory::FreshProduce->value,
-                GlobalCatalogCategory::BabyProducts->value,
-                GlobalCatalogCategory::PhoneRepairParts->value,
             ],
             self::Wholesale => [
                 GlobalCatalogCategory::WholesalePacks->value,
@@ -343,12 +346,14 @@ enum BusinessType: string
             ],
             self::FoodVendor => [
                 GlobalCatalogCategory::FoodAndSnacks->value,
+                GlobalCatalogCategory::Bakery->value,
                 GlobalCatalogCategory::Beverages->value,
                 GlobalCatalogCategory::DairyProducts->value,
                 GlobalCatalogCategory::RestaurantSupplies->value,
             ],
             self::SmallRestaurant => [
                 GlobalCatalogCategory::FoodAndSnacks->value,
+                GlobalCatalogCategory::Bakery->value,
                 GlobalCatalogCategory::Beverages->value,
                 GlobalCatalogCategory::DairyProducts->value,
                 GlobalCatalogCategory::Groceries->value,
@@ -363,17 +368,13 @@ enum BusinessType: string
             ],
             self::BabyShop => [
                 GlobalCatalogCategory::BabyProducts->value,
-                GlobalCatalogCategory::HouseholdItems->value,
             ],
             self::Bakery => [
-                GlobalCatalogCategory::FoodAndSnacks->value,
+                GlobalCatalogCategory::Bakery->value,
                 GlobalCatalogCategory::Beverages->value,
-                GlobalCatalogCategory::Groceries->value,
             ],
             self::PhoneRepair => [
                 GlobalCatalogCategory::PhoneRepairParts->value,
-                GlobalCatalogCategory::ElectronicsAndAccessories->value,
-                GlobalCatalogCategory::Services->value,
             ],
         };
     }

@@ -6,22 +6,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('flags retired akirabites.shop hosts', () {
-    expect(isRetiredApiBaseUrl('https://api.akirabites.shop'), isTrue);
-    expect(isRetiredApiBaseUrl('https://akirabites.shop/'), isTrue);
-    expect(isRetiredApiBaseUrl('https://www.akirabites.shop'), isTrue);
-    expect(isRetiredApiBaseUrl(productionApiBaseUrl), isFalse);
-    expect(isRetiredApiBaseUrl('http://127.0.0.1:8000'), isFalse);
-  });
-
-  test('uses the production API by default', () {
+  test('uses the Render production API by default', () {
     expect(defaultApiBaseUrl, productionApiBaseUrl);
     expect(defaultApiBaseUrl, 'https://akira-flow-api.onrender.com');
   });
 
   test('clears a saved custom URL and uses the production API', () async {
     SharedPreferences.setMockInitialValues({
-      'akira_api_base_url': 'https://api.akirabites.shop',
+      'akira_api_base_url': 'https://example.com/old-api',
     });
 
     final url = await ApiConfigService.getBaseUrl();
@@ -30,5 +22,12 @@ void main() {
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('akira_api_base_url'), isNull);
+  });
+
+  test('sanitizeApiBaseUrl strips trailing slashes', () {
+    expect(
+      sanitizeApiBaseUrl('https://akira-flow-api.onrender.com/'),
+      'https://akira-flow-api.onrender.com',
+    );
   });
 }

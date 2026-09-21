@@ -74,14 +74,17 @@ class GlobalCatalogTest extends TestCase
         $allowed = BusinessType::FoodVendor->allowedGlobalCatalogCategories();
         $this->assertContains('Food & Snacks', $allowed);
         $this->assertContains('Beverages', $allowed);
+        $this->assertContains('Bakery', $allowed);
 
         $catalog = require database_path('data/global_product_catalog.php');
-        $names = array_column($catalog['Food & Snacks'], 'name');
-        $this->assertContains('Ndengu Samosa', $names);
-        $this->assertContains('Meat Samosa', $names);
-        $this->assertContains('Mandazi', $names);
-        $this->assertContains('Ugali', $names);
-        $this->assertContains('Nyama Choma', $names);
+        $snacks = array_column($catalog['Food & Snacks'], 'name');
+        $bakery = array_column($catalog['Bakery'], 'name');
+        $this->assertContains('Ndengu Samosa', $snacks);
+        $this->assertContains('Meat Samosa', $snacks);
+        $this->assertContains('Ugali', $snacks);
+        $this->assertContains('Nyama Choma', $snacks);
+        $this->assertContains('Mandazi', $bakery);
+        $this->assertNotContains('Mandazi', $snacks);
     }
 
     public function test_small_restaurant_allowed_catalog_includes_menu_and_meat(): void
@@ -157,6 +160,66 @@ class GlobalCatalogTest extends TestCase
         $this->assertContains('Sukuma wiki', $names);
         $this->assertContains('Hoho (capsicum)', $names);
         $this->assertContains('Dhania', $names);
+    }
+
+    public function test_bakery_catalog_is_baked_goods_not_phone_parts(): void
+    {
+        $allowed = BusinessType::Bakery->allowedGlobalCatalogCategories();
+        $this->assertSame(['Bakery', 'Beverages'], $allowed);
+
+        $catalog = require database_path('data/global_product_catalog.php');
+        $bakery = array_column($catalog['Bakery'], 'name');
+        $this->assertContains('White Bread', $bakery);
+        $this->assertContains('Queen cake', $bakery);
+        $this->assertNotContains('Phone screen', $bakery);
+    }
+
+    public function test_phone_repair_catalog_is_parts_only(): void
+    {
+        $allowed = BusinessType::PhoneRepair->allowedGlobalCatalogCategories();
+        $this->assertSame(['Phone Repair Parts'], $allowed);
+        $this->assertNotContains('Bakery', $allowed);
+        $this->assertNotContains('Baby Products', $allowed);
+
+        $catalog = require database_path('data/global_product_catalog.php');
+        $parts = array_column($catalog['Phone Repair Parts'], 'name');
+        $this->assertContains('Phone screen', $parts);
+        $this->assertContains('Phone battery', $parts);
+        $this->assertNotContains('Queen cake', $parts);
+        $this->assertNotContains('Pampers (pack)', $parts);
+    }
+
+    public function test_grocery_excludes_baby_bakery_and_phone_repair_catalogs(): void
+    {
+        $allowed = BusinessType::GroceryShop->allowedGlobalCatalogCategories();
+        $this->assertNotContains('Baby Products', $allowed);
+        $this->assertNotContains('Bakery', $allowed);
+        $this->assertNotContains('Phone Repair Parts', $allowed);
+    }
+
+    public function test_baby_shop_catalog_is_baby_products_only(): void
+    {
+        $allowed = BusinessType::BabyShop->allowedGlobalCatalogCategories();
+        $this->assertSame(['Baby Products'], $allowed);
+    }
+
+    public function test_phone_repair_api_catalog_excludes_bakery_items(): void
+    {
+        $this->seedCatalog();
+        $this->actingAsBusiness('phone_repair', 'Fundi');
+
+        $categories = collect($this->getJson('/api/global-categories')->json('data.categories'))
+            ->pluck('name')
+            ->all();
+        $this->assertSame(['Phone Repair Parts'], $categories);
+
+        $names = collect($this->getJson('/api/global-products')->json('data'))
+            ->pluck('name')
+            ->all();
+        $this->assertContains('Phone screen', $names);
+        $this->assertNotContains('Queen cake', $names);
+        $this->assertNotContains('Mandazi', $names);
+        $this->assertNotContains('Pampers (pack)', $names);
     }
 
     public function test_butchery_setup_seeds_meat_types_without_prices(): void

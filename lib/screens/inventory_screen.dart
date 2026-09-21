@@ -40,6 +40,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   String _marginLine(ApiProduct product) {
+    final config = ref.read(businessTypeConfigProvider);
     final sell = product.sellingPrice;
     final cost = product.costPrice;
     if (sell <= 0) {
@@ -50,8 +51,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ' • Buy ${cost.toStringAsFixed(0)}'
         ' • Profit ${profit.toStringAsFixed(0)}'
         ' • Stock: ${product.stockQuantity}'
-        '${product.departmentLabel != null ? ' • ${product.departmentLabel}' : ''}'
-        '${product.expiryDate != null ? ' • Exp ${AppLayout.dateLabel(product.expiryDate!)}' : ''}'
+        '${config.showDepartmentPicker && product.departmentLabel != null ? ' • ${product.departmentLabel}' : ''}'
+        '${product.department == ProductDepartment.bakery && product.expiryDate != null ? ' • Exp ${AppLayout.dateLabel(product.expiryDate!)}' : ''}'
         '${product.unit != null ? ' • ${product.unit}' : ''}'
         '${product.isActive ? '' : ' • Inactive'}';
   }
@@ -458,9 +459,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final costCtrl = TextEditingController();
     final stockCtrl = TextEditingController(text: '0');
     final formKey = GlobalKey<FormState>();
-    var department = ProductDepartment.fromBusinessType(
-      ref.read(businessTypeConfigProvider).id,
-    );
+    final config = ref.read(businessTypeConfigProvider);
+    var department = ProductDepartment.fromBusinessType(config.id);
     DateTime? expiry;
 
     final palette = ref.read(businessThemePaletteProvider);
@@ -547,8 +547,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         sellingPrice: double.parse(priceCtrl.text.trim()),
         costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
-        department: department,
-        expiryDate: expiry,
+        department: config.showDepartmentPicker ? department : null,
+        expiryDate: department == ProductDepartment.bakery ? expiry : null,
       );
       if (context.mounted) {
         await _offerProductImage(context, product);
@@ -568,9 +568,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final costCtrl = TextEditingController();
     final stockCtrl = TextEditingController(text: '0');
     final formKey = GlobalKey<FormState>();
-    var department = ProductDepartment.fromBusinessType(
-      ref.read(businessTypeConfigProvider).id,
-    );
+    final config = ref.read(businessTypeConfigProvider);
+    var department = ProductDepartment.fromBusinessType(config.id);
     DateTime? expiry;
 
     final palette = ref.read(businessThemePaletteProvider);
@@ -664,8 +663,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         sellingPrice: double.parse(priceCtrl.text.trim()),
         costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
-        department: department,
-        expiryDate: expiry,
+        department: config.showDepartmentPicker ? department : null,
+        expiryDate: department == ProductDepartment.bakery ? expiry : null,
       );
       if (context.mounted) {
         await _offerProductImage(context, product);
@@ -695,6 +694,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final stockCtrl = TextEditingController(
       text: product.stockQuantity.toString(),
     );
+    final config = ref.read(businessTypeConfigProvider);
     var department = product.department;
     var expiry = product.expiryDate;
     final formKey = GlobalKey<FormState>();
@@ -781,8 +781,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         sellingPrice: double.parse(priceCtrl.text.trim()),
         costPrice: double.parse(costCtrl.text.trim()),
         stockQuantity: int.parse(stockCtrl.text.trim()),
-        department: department ?? '',
-        expiryDate: expiry,
+        department: config.showDepartmentPicker ? department ?? '' : null,
+        expiryDate: department == ProductDepartment.bakery ? expiry : null,
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -805,49 +805,65 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     required ValueChanged<String?> onDepartment,
     required ValueChanged<DateTime?> onExpiry,
   }) {
+    final config = ref.read(businessTypeConfigProvider);
+    final isBakery = department == ProductDepartment.bakery;
+    if (!config.showDepartmentPicker && !isBakery) {
+      return const [];
+    }
+
     return [
-      const SizedBox(height: 16),
-      Text(
-        'Department',
-        style: Theme.of(context).textTheme.labelLarge,
-      ),
-      const SizedBox(height: 8),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          ChoiceChip(
-            label: const Text('General'),
-            selected: department == null,
-            onSelected: (_) => onDepartment(null),
-          ),
-          ...ProductDepartment.values.map(
-            (id) => ChoiceChip(
-              label: Text(ProductDepartment.label(id)),
-              selected: department == id,
-              onSelected: (_) => onDepartment(id),
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 8),
-      OutlinedButton.icon(
-        onPressed: () async {
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: expiry ?? DateTime.now(),
-            firstDate: DateTime(2020),
-            lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-          );
-          if (picked != null) onExpiry(picked);
-        },
-        icon: const Icon(Icons.event_outlined),
-        label: Text(
-          expiry == null
-              ? 'Expiry date (bakery / perishable)'
-              : 'Expires ${AppLayout.dateLabel(expiry)}',
+      if (config.showDepartmentPicker) ...[
+        const SizedBox(height: 16),
+        Text(
+          'Department',
+          style: Theme.of(context).textTheme.labelLarge,
         ),
-      ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('General'),
+              selected: department == null,
+              onSelected: (_) {
+                onDepartment(null);
+                onExpiry(null);
+              },
+            ),
+            ...ProductDepartment.values.map(
+              (id) => ChoiceChip(
+                label: Text(ProductDepartment.label(id)),
+                selected: department == id,
+                onSelected: (_) {
+                  onDepartment(id);
+                  if (id != ProductDepartment.bakery) onExpiry(null);
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+      if (isBakery) ...[
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: expiry ?? DateTime.now(),
+              firstDate: DateTime(2020),
+              lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+            );
+            if (picked != null) onExpiry(picked);
+          },
+          icon: const Icon(Icons.event_outlined),
+          label: Text(
+            expiry == null
+                ? 'Expiry date'
+                : 'Expires ${AppLayout.dateLabel(expiry)}',
+          ),
+        ),
+      ],
     ];
   }
 
@@ -897,7 +913,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final useCloud = ref.watch(useCloudDataProvider);
     final productsAsync = ref.watch(apiProductsProvider);
     final palette = ref.watch(businessThemePaletteProvider);
-    final catalogSubtitle = ref.watch(businessTypeConfigProvider).globalCatalogSubtitle;
+    final config = ref.watch(businessTypeConfigProvider);
+    final catalogSubtitle = config.globalCatalogSubtitle;
 
     return Scaffold(
       appBar: AppBar(
@@ -1039,26 +1056,28 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           ),
                         ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          ChoiceChip(
-                            label: const Text('All'),
-                            selected: _departmentFilter == null,
-                            onSelected: (_) =>
-                                setState(() => _departmentFilter = null),
-                          ),
-                          ...ProductDepartment.values.map(
-                            (id) => ChoiceChip(
-                              label: Text(ProductDepartment.label(id)),
-                              selected: _departmentFilter == id,
+                      if (config.showDepartmentPicker) ...[
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('All'),
+                              selected: _departmentFilter == null,
                               onSelected: (_) =>
-                                  setState(() => _departmentFilter = id),
+                                  setState(() => _departmentFilter = null),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
+                            ...ProductDepartment.values.map(
+                              (id) => ChoiceChip(
+                                label: Text(ProductDepartment.label(id)),
+                                selected: _departmentFilter == id,
+                                onSelected: (_) =>
+                                    setState(() => _departmentFilter = id),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       Text(
                         'History',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(

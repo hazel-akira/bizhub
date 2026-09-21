@@ -6,6 +6,7 @@ import '../providers/api_data_provider.dart';
 import '../providers/business_api_provider.dart';
 import '../providers/expenses_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/business_profile_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/access_denied_page.dart';
 
@@ -104,7 +105,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                         controller: _nameController,
                         decoration: InputDecoration(
                           labelText: 'Expense Name',
-                          hintText: 'e.g. Flour, Cooking oil',
+                          hintText: ref.watch(businessTypeConfigProvider).expenseNameHint,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),

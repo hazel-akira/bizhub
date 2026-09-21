@@ -28,6 +28,7 @@ enum GlobalCatalogCategory: string
     case Hardware = 'Hardware';
     case RestaurantSupplies = 'Restaurant Supplies';
     case Services = 'Services';
+    case Bakery = 'Bakery';
     case BabyProducts = 'Baby Products';
     case PhoneRepairParts = 'Phone Repair Parts';
 

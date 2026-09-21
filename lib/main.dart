@@ -380,7 +380,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
                   selected: _activeSection == _NavSection.customers,
                   onTap: () => _setDrawerSection(_NavSection.customers),
                 ),
-              if (access.canOpenRepairs)
+              if (access.canOpenRepairs && config.showRepairsNav)
                 ListTile(
                   leading: const Icon(Icons.phonelink_setup_outlined),
                   title: const Text('Fundi wa simu'),

@@ -40,6 +40,63 @@ class BusinessTypeConfig {
   final String globalCatalogSubtitle;
   final IconData productIcon;
 
+  bool get showRepairsNav => id == 'phone_repair';
+
+  bool get showExpiryDate => id == 'bakery';
+
+  bool get showDepartmentPicker => true;
+
+  String get expenseNameHint {
+    switch (id) {
+      case 'food_vendor':
+        return 'e.g. Ingredients, Gas, Transport';
+      case 'small_restaurant':
+        return 'e.g. Ingredients, Gas, Rent';
+      case 'bakery':
+        return 'e.g. Flour, Gas, Packaging';
+      case 'phone_repair':
+        return 'e.g. Spare parts, Tools, Rent';
+      case 'baby_shop':
+        return 'e.g. Stock, Packaging, Transport';
+      case 'pharmacy':
+        return 'e.g. Stock, Licenses, Rent';
+      case 'grocery_shop':
+        return 'e.g. Stock, Transport, Rent';
+      case 'mama_mboga':
+        return 'e.g. Produce, Transport, Market fee';
+      case 'dairy_shop':
+        return 'e.g. Milk supply, Packaging, Rent';
+      case 'poultry_shop':
+        return 'e.g. Birds, Feeds, Transport';
+      case 'butchery':
+        return 'e.g. Livestock, Ice, Transport';
+      case 'wholesale':
+        return 'e.g. Stock, Warehouse, Transport';
+      case 'liquor_store':
+        return 'e.g. Stock, Licenses, Rent';
+      case 'gas_water':
+        return 'e.g. Gas stock, Water, Transport';
+      case 'boutique':
+        return 'e.g. Stock, Rent, Packaging';
+      case 'beauty_shop':
+        return 'e.g. Stock, Rent, Packaging';
+      case 'shoe_store':
+        return 'e.g. Stock, Rent, Packaging';
+      case 'hardware_store':
+        return 'e.g. Stock, Transport, Rent';
+      case 'agrovet':
+        return 'e.g. Stock, Licenses, Transport';
+      case 'electronics_shop':
+        return 'e.g. Stock, Warranty, Rent';
+      case 'cybercafe':
+        return 'e.g. Paper, Ink, Internet';
+      case 'salon':
+        return 'e.g. Products, Rent, Labour';
+      default:
+        return 'e.g. Rent, Transport, Stock';
+    }
+  }
+
   static const fallback = BusinessTypeConfig(
     id: 'food_vendor',
     label: 'Food Vendors',

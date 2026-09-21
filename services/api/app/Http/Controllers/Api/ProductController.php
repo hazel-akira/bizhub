@@ -9,6 +9,7 @@ use App\Http\Requests\StoreProductFromGlobalRequest;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use App\Enums\ProductDepartment;
+use App\Enums\BusinessType;
 use App\Models\GlobalProduct;
 use App\Models\Product;
 use App\Services\GlobalCatalogService;
@@ -59,7 +60,7 @@ class ProductController extends Controller
     {
         $product = Product::create([
             ...$request->validated(),
-            ...$this->departmentDefaults($request, $request->validated()),
+            ...$this->applyInventoryRules($request, $request->validated(), creating: true),
             'business_id' => $request->user()->business_id,
             'global_product_id' => null,
             'is_active' => $request->boolean('is_active', true),
@@ -108,7 +109,7 @@ class ProductController extends Controller
             'stock_quantity' => $validated['stock_quantity'] ?? 0,
             'reorder_level' => $validated['reorder_level'] ?? 5,
             'is_active' => true,
-            ...$this->departmentDefaults($request, $validated),
+            ...$this->applyInventoryRules($request, $validated, creating: true),
         ]);
 
         return $this->success(
@@ -123,7 +124,7 @@ class ProductController extends Controller
 
         $product = Product::create([
             ...$validated,
-            ...$this->departmentDefaults($request, $validated),
+            ...$this->applyInventoryRules($request, $validated, creating: true),
             'business_id' => $request->user()->business_id,
             'global_product_id' => null,
             'is_active' => $request->boolean('is_active', true),
@@ -153,7 +154,7 @@ class ProductController extends Controller
             unset($data['stock_quantity']);
         }
 
-        $product->update($data);
+        $product->update($this->applyInventoryRules($request, $data, creating: false));
 
         return $this->success($this->format($product->fresh(['category', 'globalProduct'])));
     }
@@ -202,6 +203,8 @@ class ProductController extends Controller
             && ($user->hasPermission('view_profit')
                 || $user->hasPermission('edit_price')
                 || $user->hasPermission('manage_stock'));
+        $type = $this->businessType();
+        $forced = ProductDepartment::fromBusinessType($type?->value);
 
         return [
             'id' => $product->id,
@@ -210,18 +213,16 @@ class ProductController extends Controller
             'name' => $product->name,
             'description' => $product->description,
             'category_id' => $product->category_id,
-            'department' => $product->department instanceof ProductDepartment
-                ? $product->department->value
-                : $product->department,
-            'department_label' => $product->department instanceof ProductDepartment
-                ? $product->department->label()
-                : null,
+            'department' => $forced?->value,
+            'department_label' => $forced?->label(),
             'cost_price' => $canSeeCost ? $product->cost_price : null,
             'selling_price' => $product->selling_price,
             'price' => (int) $product->selling_price,
             'stock_quantity' => $product->stock_quantity,
             'reorder_level' => $product->reorder_level,
-            'expiry_date' => $product->expiry_date?->toDateString(),
+            'expiry_date' => ($type?->tracksExpiry() ?? false)
+                ? $product->expiry_date?->toDateString()
+                : null,
             'barcode' => $product->barcode,
             'unit' => $product->globalProduct?->unit,
             'is_active' => (bool) $product->is_active,
@@ -239,19 +240,34 @@ class ProductController extends Controller
 
     /**
      * @param  array<string, mixed>  $validated
-     * @return array{department: string|null, expiry_date: mixed}
+     * @return array<string, mixed>
      */
-    private function departmentDefaults(Request $request, array $validated): array
+    private function applyInventoryRules(Request $request, array $validated, bool $creating): array
     {
-        $department = $validated['department'] ?? null;
-        if ($department === null || $department === '') {
-            $type = $request->user()->loadMissing('business')->business?->business_type;
-            $department = ProductDepartment::fromBusinessType($type)?->value;
+        $type = BusinessType::tryFromString(
+            $request->user()->loadMissing('business')->business?->business_type
+        );
+        $forced = ProductDepartment::fromBusinessType($type?->value);
+
+        if ($forced) {
+            $validated['department'] = $forced->value;
+        } else {
+            $validated['department'] = null;
         }
 
-        return [
-            'department' => $department,
-            'expiry_date' => $validated['expiry_date'] ?? null,
-        ];
+        if (! ($type?->tracksExpiry() ?? false)) {
+            $validated['expiry_date'] = null;
+        } elseif (! $creating && ! array_key_exists('expiry_date', $validated)) {
+            unset($validated['expiry_date']);
+        }
+
+        return $validated;
+    }
+
+    private function businessType(): ?BusinessType
+    {
+        return BusinessType::tryFromString(
+            request()->user()?->loadMissing('business')->business?->business_type
+        );
     }
 }
