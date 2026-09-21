@@ -47,9 +47,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     }
     ref.invalidate(todayStatsProvider);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Expense added!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Expense added!')));
       _nameController.clear();
       _amountController.clear();
     }
@@ -105,13 +105,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                         controller: _nameController,
                         decoration: InputDecoration(
                           labelText: 'Expense Name',
-                          hintText: ref.watch(businessTypeConfigProvider).expenseNameHint,
+                          hintText: ref
+                              .watch(businessTypeConfigProvider)
+                              .expenseNameHint,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        validator: (v) =>
-                            (v?.trim().isEmpty ?? true) ? 'Enter expense name' : null,
+                        validator: (v) => (v?.trim().isEmpty ?? true)
+                            ? 'Enter expense name'
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
@@ -140,8 +143,30 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                           ),
                         ),
                         items: const [
-                          DropdownMenuItem(value: 'daily', child: Text('Daily')),
-                          DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                          DropdownMenuItem(
+                            value: 'daily',
+                            child: Text('Daily'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'weekly',
+                            child: Text('Weekly'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'monthly',
+                            child: Text('Monthly'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'yearly',
+                            child: Text('Yearly'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'one-time',
+                            child: Text('One-Time'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'other',
+                            child: Text('Other'),
+                          ),
                         ],
                         onChanged: (value) {
                           if (value != null) setState(() => _category = value);
@@ -184,43 +209,45 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                   : Column(
                       children: useCloud
                           ? (expenses as List<ApiExpense>)
-                              .map(
-                                (e) => Card(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  child: ListTile(
-                                    title: Text(e.title),
-                                    subtitle: Text(_formatDate(e.expenseDate)),
-                                    trailing: Text(
-                                      'KES ${e.amount.toStringAsFixed(0)}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.orange,
+                                .map(
+                                  (e) => Card(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    child: ListTile(
+                                      title: Text(e.title),
+                                      subtitle: Text(
+                                        _formatDate(e.expenseDate),
+                                      ),
+                                      trailing: Text(
+                                        'KES ${e.amount.toStringAsFixed(0)}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              )
-                              .toList()
+                                )
+                                .toList()
                           : (expenses as List<Expense>)
-                              .map(
-                                (e) => Card(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  child: ListTile(
-                                    title: Text(e.name),
-                                    subtitle: Text(
-                                      '${e.category} • ${_formatDate(e.createdAt)}',
-                                    ),
-                                    trailing: Text(
-                                      'KES ${e.amount.toStringAsFixed(0)}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.orange,
+                                .map(
+                                  (e) => Card(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    child: ListTile(
+                                      title: Text(e.name),
+                                      subtitle: Text(
+                                        '${e.category} • ${_formatDate(e.createdAt)}',
+                                      ),
+                                      trailing: Text(
+                                        'KES ${e.amount.toStringAsFixed(0)}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              )
-                              .toList(),
+                                )
+                                .toList(),
                     ),
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Text('Error: $e'),

@@ -6,6 +6,7 @@ import '../models/api_repair_ticket.dart';
 import '../models/api_sale.dart';
 import '../models/global_category.dart';
 import '../models/global_product.dart';
+import '../services/etims_utility.dart';
 import 'business_api_provider.dart';
 
 final apiProductsProvider = FutureProvider<List<ApiProduct>>((ref) async {
@@ -85,10 +86,12 @@ final createApiSaleProvider = Provider<
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
 
-    final sale = await api.createSale(
-      ndenguCount: ndenguCount,
-      meatCount: meatCount,
-      paymentMethod: paid ? paymentMethod : 'credit',
+    final sale = await EtimsUtility.finalizeSale(
+      persistSale: () => api.createSale(
+        ndenguCount: ndenguCount,
+        meatCount: meatCount,
+        paymentMethod: paid ? paymentMethod : 'credit',
+      ),
     );
 
     ref.invalidate(apiSalesProvider);
@@ -129,11 +132,13 @@ final createApiSaleWithItemsProvider = Provider<
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
 
-    final sale = await api.createSaleWithItems(
-      items: items,
-      paymentMethod: paymentMethod,
-      customerId: customerId,
-      unitPrice: unitPrice,
+    final sale = await EtimsUtility.finalizeSale(
+      persistSale: () => api.createSaleWithItems(
+        items: items,
+        paymentMethod: paymentMethod,
+        customerId: customerId,
+        unitPrice: unitPrice,
+      ),
     );
 
     ref.invalidate(apiSalesProvider);

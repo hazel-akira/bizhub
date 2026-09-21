@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../providers/business_api_provider.dart';
 import '../providers/database_provider.dart';
 import '../services/sales_reminder_service.dart';
+import '../widgets/etims_settings_card.dart';
 import '../widgets/mpesa_settings_card.dart';
 import '../widgets/access_denied_page.dart';
 import 'login_screen.dart';
@@ -101,6 +102,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (access.canOpenSettings) ...[
             const SizedBox(height: 16),
             const MpesaSettingsCard(),
+            const SizedBox(height: 16),
+            const EtimsSettingsCard(),
           ],
           if (access.canOpenReports) ...[
             const SizedBox(height: 16),

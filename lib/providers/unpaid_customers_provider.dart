@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/etims_utility.dart';
 import 'api_data_provider.dart';
 import 'business_api_provider.dart';
 import 'database_provider.dart';
@@ -184,11 +185,13 @@ final addUnpaidSaleProvider = Provider<
       }
 
       final unitPrice = totalAmount / quantity;
-      await api.createSaleWithItems(
-        items: [(productId: product.id, quantity: quantity)],
-        paymentMethod: 'credit',
-        customerId: customerId,
-        unitPrice: unitPrice,
+      await EtimsUtility.finalizeSale(
+        persistSale: () => api.createSaleWithItems(
+          items: [(productId: product.id, quantity: quantity)],
+          paymentMethod: 'credit',
+          customerId: customerId,
+          unitPrice: unitPrice,
+        ),
       );
       ref.invalidate(apiSalesProvider);
       ref.invalidate(apiDashboardProvider);
