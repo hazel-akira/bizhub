@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/google_auth_config.dart';
-import '../main.dart';
 import '../models/business_type.dart';
 import '../models/google_auth_exceptions.dart';
+import '../navigation/post_auth_navigation.dart';
 import '../providers/auth_provider.dart';
 import '../services/business_type_service.dart';
 import '../services/google_auth_service.dart';
@@ -103,10 +103,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             businessType: _selectedBusinessType!,
           );
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const MainNavScreen()),
-        (_) => false,
-      );
+      await navigateAfterAuth(context, clearStack: true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -144,10 +141,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             businessType: _selectedBusinessType!,
           );
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const MainNavScreen()),
-        (_) => false,
-      );
+      await navigateAfterAuth(context, clearStack: true);
     } on GoogleAuthCancelledException {
       return;
     } on GoogleAuthConsoleSetupException {

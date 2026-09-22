@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/api_data_provider.dart';
+import '../providers/app_tour_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/business_api_provider.dart';
 import '../providers/database_provider.dart';
+import '../services/app_tour_service.dart';
 import '../services/sales_reminder_service.dart';
 import '../widgets/etims_settings_card.dart';
 import '../widgets/mpesa_settings_card.dart';
 import '../widgets/access_denied_page.dart';
+import 'app_intro_screen.dart';
 import 'login_screen.dart';
 import 'reports_screen.dart';
 import 'staff_screen.dart';
@@ -104,6 +107,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const MpesaSettingsCard(),
             const SizedBox(height: 16),
             const EtimsSettingsCard(),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'App tour',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Replay the swipe intro or the in-app navigation highlights.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.view_carousel_outlined),
+                      title: const Text('Replay swipe intro'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AppIntroScreen(
+                              markCompleted: false,
+                              nextBuilder: (_) => const SizedBox.shrink(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.highlight_alt_outlined),
+                      title: const Text('Replay navigation tour'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        await AppTourService.instance.resetCoachTour();
+                        ref.read(coachTourReplayTickProvider.notifier).state++;
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Starting navigation tour…'),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
           if (access.canOpenReports) ...[
             const SizedBox(height: 16),

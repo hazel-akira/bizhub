@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/google_auth_config.dart';
-import '../main.dart';
+import '../navigation/post_auth_navigation.dart';
 import '../models/google_auth_exceptions.dart';
 import '../providers/auth_provider.dart';
 import '../services/google_auth_service.dart';
@@ -42,9 +42,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             password: _passwordController.text,
           );
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavScreen()),
-      );
+      await navigateAfterAuth(context);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -63,9 +61,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await ref.read(authProvider.notifier).signInWithGoogle();
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavScreen()),
-      );
+      await navigateAfterAuth(context);
     } on GoogleAuthCancelledException {
       return;
     } on GoogleAuthConsoleSetupException {

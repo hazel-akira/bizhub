@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 import 'core/layout.dart';
 import 'providers/api_data_provider.dart';
+import 'providers/app_tour_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/business_api_provider.dart';
 import 'providers/business_profile_provider.dart';
@@ -10,6 +12,7 @@ import 'providers/business_theme_provider.dart';
 import 'providers/database_provider.dart';
 import 'screens/login_screen.dart';
 import 'services/api_config_service.dart';
+import 'services/app_tour_service.dart';
 import 'services/sales_reminder_service.dart';
 import 'screens/assistant_screen.dart';
 import 'screens/customers_screen.dart';
@@ -74,17 +77,57 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
   int _currentBottomIndex = 0;
   _NavSection _activeSection = _NavSection.dashboard;
 
+  final _menuKey = GlobalKey();
+  final Map<_NavSection, GlobalKey> _navKeys = {};
+  bool _coachStarting = false;
+
+  GlobalKey _navKeyFor(_NavSection section) =>
+      _navKeys.putIfAbsent(section, GlobalKey.new);
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ShowcaseView.register(
+      skipIfTargetNotPresent: true,
+      onFinish: () {
+        AppTourService.instance.markCoachTourCompleted();
+      },
+      onDismiss: (_) {
+        AppTourService.instance.markCoachTourCompleted();
+      },
+    );
     _syncSalesReminder();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeStartCoachTour();
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    try {
+      ShowcaseView.get().unregister();
+    } catch (_) {}
     super.dispose();
+  }
+
+  Future<void> _maybeStartCoachTour({bool force = false}) async {
+    if (!mounted || _coachStarting) return;
+    if (!force && await AppTourService.instance.hasCompletedCoachTour()) {
+      return;
+    }
+    _coachStarting = true;
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+    if (!mounted) return;
+
+    final keys = <GlobalKey>[_menuKey];
+    for (final item in _bottomNavItems()) {
+      keys.add(_navKeyFor(item.section));
+    }
+
+    ShowcaseView.get().startShowCase(keys);
+    _coachStarting = false;
   }
 
   @override
@@ -284,10 +327,30 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
 
     final appBarTitle = auth.user?.businessName ?? config.appTitle;
 
+    ref.listen<int>(coachTourReplayTickProvider, (previous, next) {
+      if (previous == next) return;
+      _maybeStartCoachTour(force: true);
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: Text(appBarTitle, overflow: TextOverflow.ellipsis),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        leading: Builder(
+          builder: (context) {
+            return Showcase(
+              key: _menuKey,
+              title: 'Menu',
+              description:
+                  'Open customers, staff, settings, M-Pesa, and KRA eTIMS from here.',
+              child: IconButton(
+                icon: const Icon(Icons.menu),
+                tooltip: 'Menu',
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
+            );
+          },
+        ),
       ),
       drawer: Drawer(
         child: SafeArea(
@@ -434,18 +497,45 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
         selectedIndex: _currentBottomIndex,
         onDestinationSelected: _setBottomSection,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        destinations: bottomItems
-            .map(
-              (item) => NavigationDestination(
-                icon: Icon(item.icon),
-                selectedIcon: Icon(item.selectedIcon),
-                label: item.label,
+        destinations: [
+          for (var i = 0; i < bottomItems.length; i++)
+            NavigationDestination(
+              icon: Showcase(
+                key: _navKeyFor(bottomItems[i].section),
+                title: bottomItems[i].label,
+                description: _tourDescriptionFor(bottomItems[i].section),
+                child: Icon(
+                  i == _currentBottomIndex
+                      ? bottomItems[i].selectedIcon
+                      : bottomItems[i].icon,
+                ),
               ),
-            )
-            .toList(),
+              label: bottomItems[i].label,
+            ),
+        ],
       ),
     );
   }
+}
+
+String _tourDescriptionFor(_NavSection section) {
+  return switch (section) {
+    _NavSection.dashboard =>
+      'Your home snapshot — today’s sales, costs, and quick status.',
+    _NavSection.sales =>
+      'Record cash, M-Pesa, card, or credit sales for the shop.',
+    _NavSection.inventory =>
+      'Manage products, prices, and stock quantities.',
+    _NavSection.orders =>
+      'Create and fulfill customer orders.',
+    _NavSection.reports =>
+      'View history, export data, and review performance.',
+    _NavSection.expenses =>
+      'Log day-to-day business costs and expenses.',
+    _NavSection.profit =>
+      'Track profit and margins over time.',
+    _ => 'More tools for running your business.',
+  };
 }
 
 class _BottomNavItem {

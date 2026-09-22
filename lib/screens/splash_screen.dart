@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../main.dart';
+import '../navigation/post_auth_navigation.dart';
 import '../providers/auth_provider.dart';
 import 'login_screen.dart';
 
@@ -104,15 +104,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _goNext(auth.isAuthenticated);
   }
 
-  void _goNext(bool isAuthenticated) {
+  Future<void> _goNext(bool isAuthenticated) async {
     if (_navigated || !mounted) return;
     _navigated = true;
+    if (isAuthenticated) {
+      await navigateAfterAuth(context);
+      return;
+    }
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            isAuthenticated ? const MainNavScreen() : const LoginScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
   }
 
