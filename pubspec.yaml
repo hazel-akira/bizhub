@@ -2,11 +2,7 @@ name: akira_bites
 description: "A new Flutter project."
 publish_to: 'none'
 
-<<<<<<< HEAD
-version: 2.2.0+6
-=======
-version: 2.1.0+8
->>>>>>> 7e37def ( v2.1.0)
+version: 2.2.0+8
 
 environment:
   sdk: ^3.11.1

@@ -12,8 +12,9 @@ Assets for leaflets, social ads, and a short promo video.
 | `akira-flow-leaflet-a5-screens-mama.png` | A5 flyer with **real app UI** + mama mboga sale |
 | `akira-flow-ad-square-screens-mama.png` | Square ad with **app screenshot** + mama mboga prompting customer |
 | `akira-flow-story-screens-mama.png` | Story ad with **app screenshot** + mama mboga + M-Pesa moment |
+| `leaflets/` | **66 creatives** — A5 + square + story for each of 22 business types (Play QR + support email) |
 | `VIDEO_SCRIPT.md` | 30–45s shootable promo script + CapCut notes |
-| `LEAFLET_PRINT.md` | Print sizes, paper, and copy variants |
+| `LEAFLET_PRINT.md` | Print sizes, per-business file list, QR/contact notes |
 
 **Play listing graphics** (screenshots / feature graphic) stay in `store/play/graphics/`.
 
