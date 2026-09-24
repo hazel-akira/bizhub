@@ -307,7 +307,7 @@ class BusinessApiService {
         'cost_price': costPrice,
         'stock_quantity': stockQuantity,
         'reorder_level': reorderLevel,
-        ?'department': department,
+        'department': department,
         if (expiryDate != null)
           'expiry_date': expiryDate.toIso8601String().split('T').first,
       },
@@ -332,7 +332,7 @@ class BusinessApiService {
         'cost_price': costPrice,
         'stock_quantity': stockQuantity,
         'is_active': true,
-        ?'department': department,
+        'department': department,
         if (expiryDate != null)
           'expiry_date': expiryDate.toIso8601String().split('T').first,
       },
