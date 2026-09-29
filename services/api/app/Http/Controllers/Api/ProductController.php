@@ -10,6 +10,7 @@ use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use App\Enums\ProductDepartment;
 use App\Enums\BusinessType;
+use App\Models\Category;
 use App\Models\GlobalProduct;
 use App\Models\Product;
 use App\Services\GlobalCatalogService;
@@ -58,9 +59,10 @@ class ProductController extends Controller
 
     public function store(StoreProductRequest $request): JsonResponse
     {
+        $validated = $this->resolveCategory($request, $request->validated());
         $product = Product::create([
-            ...$request->validated(),
-            ...$this->applyInventoryRules($request, $request->validated(), creating: true),
+            ...$validated,
+            ...$this->applyInventoryRules($request, $validated, creating: true),
             'business_id' => $request->user()->business_id,
             'global_product_id' => null,
             'is_active' => $request->boolean('is_active', true),
@@ -78,7 +80,7 @@ class ProductController extends Controller
     ): JsonResponse {
         $businessId = $request->user()->business_id;
         $user = $request->user()->loadMissing('business');
-        $validated = $request->validated();
+        $validated = $this->resolveCategory($request, $request->validated());
         $global = GlobalProduct::with('category')->findOrFail($validated['global_product_id']);
 
         if (! $catalog->userCanImportGlobalProduct($user, $global)) {
@@ -120,7 +122,7 @@ class ProductController extends Controller
 
     public function storeCustom(StoreCustomProductRequest $request): JsonResponse
     {
-        $validated = $request->validated();
+        $validated = $this->resolveCategory($request, $request->validated());
 
         $product = Product::create([
             ...$validated,
@@ -146,7 +148,7 @@ class ProductController extends Controller
             return $this->error('You do not have permission to do that.', 403);
         }
 
-        $data = $request->validated();
+        $data = $this->resolveCategory($request, $request->validated());
         if (! $user->hasPermission('edit_price')) {
             unset($data['selling_price'], $data['cost_price']);
         }
@@ -213,6 +215,8 @@ class ProductController extends Controller
             'name' => $product->name,
             'description' => $product->description,
             'category_id' => $product->category_id,
+            'category_name' => $product->category?->name,
+            'subcategory' => $product->category?->name,
             'department' => $forced?->value,
             'department_label' => $forced?->label(),
             'cost_price' => $canSeeCost ? $product->cost_price : null,
@@ -236,6 +240,39 @@ class ProductController extends Controller
             'created_at' => $product->created_at?->toIso8601String(),
             'updated_at' => $product->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Accepts category_id or a free-text subcategory name (find-or-create).
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function resolveCategory(Request $request, array $validated): array
+    {
+        $businessId = $request->user()->business_id;
+        $name = trim((string) ($validated['subcategory'] ?? ''));
+        unset($validated['subcategory']);
+
+        if ($name === '') {
+            return $validated;
+        }
+
+        $existing = Category::forBusiness($businessId)
+            ->get()
+            ->first(fn (Category $category) => strcasecmp($category->name, $name) === 0);
+
+        if ($existing === null) {
+            $existing = Category::create([
+                'business_id' => $businessId,
+                'name' => $name,
+                'created_at' => now(),
+            ]);
+        }
+
+        $validated['category_id'] = $existing->id;
+
+        return $validated;
     }
 
     /**

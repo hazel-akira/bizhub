@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/api_category.dart';
 import '../models/api_expense.dart';
 import '../models/api_product.dart';
 import '../models/api_repair_ticket.dart';
@@ -13,6 +14,12 @@ final apiProductsProvider = FutureProvider<List<ApiProduct>>((ref) async {
   final api = ref.watch(businessApiProvider);
   if (api == null) return [];
   return api.getProducts();
+});
+
+final apiCategoriesProvider = FutureProvider<List<ApiCategory>>((ref) async {
+  final api = ref.watch(businessApiProvider);
+  if (api == null) return [];
+  return api.getCategories();
 });
 
 final apiDashboardProvider = FutureProvider((ref) async {
@@ -158,6 +165,8 @@ final createApiProductProvider = Provider<
     int stockQuantity,
     String? department,
     DateTime? expiryDate,
+    int? categoryId,
+    String? subcategory,
 })>((ref) {
   return ({
     required String name,
@@ -166,6 +175,8 @@ final createApiProductProvider = Provider<
     int stockQuantity = 0,
     String? department,
     DateTime? expiryDate,
+    int? categoryId,
+    String? subcategory,
   }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
@@ -177,9 +188,12 @@ final createApiProductProvider = Provider<
       stockQuantity: stockQuantity,
       department: department,
       expiryDate: expiryDate,
+      categoryId: categoryId,
+      subcategory: subcategory,
     );
 
     ref.invalidate(apiProductsProvider);
+    ref.invalidate(apiCategoriesProvider);
     ref.invalidate(apiDashboardProvider);
     return product;
   };
@@ -192,7 +206,9 @@ final addProductFromGlobalProvider = Provider<
   required double costPrice,
   int stockQuantity,
   String? department,
-  DateTime? expiryDate,
+    DateTime? expiryDate,
+    int? categoryId,
+    String? subcategory,
 })>((ref) {
   return ({
     required int globalProductId,
@@ -201,6 +217,8 @@ final addProductFromGlobalProvider = Provider<
     int stockQuantity = 0,
     String? department,
     DateTime? expiryDate,
+    int? categoryId,
+    String? subcategory,
   }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
@@ -212,9 +230,12 @@ final addProductFromGlobalProvider = Provider<
       costPrice: costPrice,
       department: department,
       expiryDate: expiryDate,
+      categoryId: categoryId,
+      subcategory: subcategory,
     );
 
     ref.invalidate(apiProductsProvider);
+    ref.invalidate(apiCategoriesProvider);
     ref.invalidate(apiDashboardProvider);
     return product;
   };
@@ -286,6 +307,9 @@ final updateApiProductProvider = Provider<
     bool? isActive,
     String? department,
     DateTime? expiryDate,
+    int? categoryId,
+    String? subcategory,
+    bool updateCategory,
   })>((ref) {
   return ({
     required int productId,
@@ -296,6 +320,9 @@ final updateApiProductProvider = Provider<
     bool? isActive,
     String? department,
     DateTime? expiryDate,
+    int? categoryId,
+    String? subcategory,
+    bool updateCategory = false,
   }) async {
     final api = ref.read(businessApiProvider);
     if (api == null) throw Exception('Not signed in');
@@ -309,9 +336,13 @@ final updateApiProductProvider = Provider<
       isActive: isActive,
       department: department,
       expiryDate: expiryDate,
+      categoryId: categoryId,
+      subcategory: subcategory,
+      updateCategory: updateCategory,
     );
 
     ref.invalidate(apiProductsProvider);
+    ref.invalidate(apiCategoriesProvider);
     ref.invalidate(apiDashboardProvider);
     return product;
   };

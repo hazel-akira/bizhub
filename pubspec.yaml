@@ -28,6 +28,7 @@ dependencies:
   image_picker: ^1.1.2
   google_sign_in: ^7.2.0
   showcaseview: ^5.1.0
+  speech_to_text: ^7.0.0
 
 dependency_overrides:
   shared_preferences_android: ^2.4.24

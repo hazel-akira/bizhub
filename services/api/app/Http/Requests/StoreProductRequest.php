@@ -19,6 +19,7 @@ class StoreProductRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'subcategory' => ['nullable', 'string', 'max:255'],
             'department' => ['nullable', Rule::enum(ProductDepartment::class)],
             'cost_price' => ['required', 'numeric', 'min:0'],
             'selling_price' => ['required', 'numeric', 'min:0.01'],

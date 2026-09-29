@@ -1,4 +1,6 @@
 import '../models/api_sale.dart';
+import '../models/assistant_reply.dart';
+import 'api_client.dart';
 import 'business_api_service.dart';
 
 class CloudBusinessAssistantService {
@@ -6,11 +8,27 @@ class CloudBusinessAssistantService {
 
   final BusinessApiService _api;
 
-  Future<String> answer(String input) async {
-    final q = input.trim().toLowerCase();
+  Future<AssistantReply> answer(String input) async {
+    final q = input.trim();
     if (q.isEmpty) {
-      return 'Ask me about sales, profit, or debts, and I will break it down clearly.';
+      return const AssistantReply(
+        text:
+            'Ask me about sales, profit, or debts — or tell me to add a product.',
+      );
     }
+
+    try {
+      return await _api.askAssistant(q);
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        return AssistantReply(text: await _keywordAnswer(q));
+      }
+      rethrow;
+    }
+  }
+
+  Future<String> _keywordAnswer(String input) async {
+    final q = input.trim().toLowerCase();
 
     if (_matchAny(q, [
       'summary',
@@ -56,12 +74,11 @@ class CloudBusinessAssistantService {
     }
 
     return 'I can help with:\n'
+        '- add milk selling 60 buying 45 stock 10\n'
         '- today summary\n'
         '- profit today\n'
-        '- revenue today\n'
-        '- samosas sold today\n'
-        '- unpaid total\n'
         '- who owes\n'
+        '- unpaid total\n'
         '- best selling this week';
   }
 

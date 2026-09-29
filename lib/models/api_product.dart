@@ -12,6 +12,8 @@ class ApiProduct {
     this.costPrice = 0,
     this.department,
     this.departmentLabel,
+    this.categoryId,
+    this.categoryName,
     this.expiryDate,
     this.createdAt,
   });
@@ -28,6 +30,8 @@ class ApiProduct {
   final String? imagePath;
   final String? department;
   final String? departmentLabel;
+  final int? categoryId;
+  final String? categoryName;
   final DateTime? expiryDate;
   final DateTime? createdAt;
 
@@ -45,6 +49,8 @@ class ApiProduct {
       imagePath: json['image_path'] as String?,
       department: json['department'] as String?,
       departmentLabel: json['department_label'] as String?,
+      categoryId: json['category_id'] as int?,
+      categoryName: json['category_name'] as String? ?? json['subcategory'] as String?,
       expiryDate: DateTime.tryParse('${json['expiry_date'] ?? ''}'),
       createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
     );

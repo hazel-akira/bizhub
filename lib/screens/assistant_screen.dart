@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/assistant_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/voice_wake_provider.dart';
 import '../widgets/access_denied_page.dart';
 
 class AssistantScreen extends ConsumerStatefulWidget {
@@ -24,13 +25,12 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
   final _scrollCtrl = ScrollController();
   final List<_AssistantMessage> _messages = [
     const _AssistantMessage(
-      text: 'Hi! I am your business assistant.\n'
-          'Ask things like:\n'
-          '- today summary\n'
-          '- profit today\n'
-          '- who owes\n'
-          '- unpaid total\n'
-          '- best selling this week',
+      text:
+          'Hi! I am Akira Flow.\n'
+          'While the app is open, just say:\n'
+          '- Hi Akira Flow, add product A selling 300 buying 250 stock 50\n'
+          '- Hi Akira Flow, add a sale of two nails 3 inches\n'
+          'Or tap the mic here and speak without the wake phrase.',
       isUser: false,
     ),
   ];
@@ -54,11 +54,10 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
     _scrollToEnd();
 
     try {
-      final service = ref.read(businessAssistantServiceProvider);
-      final reply = await service.answer(text);
+      final reply = await ref.read(askAssistantProvider)(text);
       if (!mounted) return;
       setState(() {
-        _messages.add(_AssistantMessage(text: reply, isUser: false));
+        _messages.add(_AssistantMessage(text: reply.text, isUser: false));
       });
     } catch (e) {
       if (!mounted) return;
@@ -96,6 +95,26 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
       return const AccessDeniedPage(title: 'Assistant');
     }
 
+    final voice = ref.watch(voiceWakeProvider);
+    final listening = voice.phase == VoiceWakePhase.listening ||
+        voice.phase == VoiceWakePhase.armed;
+    final busy = _loading || voice.phase == VoiceWakePhase.processing;
+
+    ref.listen<VoiceWakeState>(voiceWakeProvider, (previous, next) {
+      if (next.lastReply == null || next.lastReply == previous?.lastReply) {
+        return;
+      }
+      if (next.phase == VoiceWakePhase.processing) return;
+      final said = (previous?.partialHeard ?? '').trim();
+      setState(() {
+        if (said.isNotEmpty) {
+          _messages.add(_AssistantMessage(text: said, isUser: true));
+        }
+        _messages.add(_AssistantMessage(text: next.lastReply!, isUser: false));
+      });
+      _scrollToEnd();
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Assistant'),
@@ -110,10 +129,9 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
               runSpacing: 8,
               children: [
                 _quickChip('today summary'),
-                _quickChip('profit today'),
                 _quickChip('who owes'),
-                _quickChip('unpaid total'),
                 _quickChip('best selling this week'),
+                _quickChip('add a product'),
               ],
             ),
           ),
@@ -125,8 +143,9 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
               itemBuilder: (context, i) {
                 final m = _messages[i];
                 return Align(
-                  alignment:
-                      m.isUser ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: m.isUser
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(12),
@@ -136,9 +155,7 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
                           ? Theme.of(context).colorScheme.primaryContainer
                           : Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).dividerColor,
-                      ),
+                      border: Border.all(color: Theme.of(context).dividerColor),
                     ),
                     child: Text(m.text),
                   ),
@@ -157,15 +174,31 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
                       controller: _inputCtrl,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        hintText: 'Ask about sales, profit, debts...',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        hintText: listening
+                            ? 'Listening...'
+                            : 'Hi Akira Flow, add product A selling 300…',
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
+                  IconButton.filledTonal(
+                    onPressed: busy
+                        ? null
+                        : () =>
+                              ref.read(voiceWakeProvider.notifier).listenDirect(),
+                    tooltip: listening
+                        ? 'Listening'
+                        : 'Speak without the wake phrase',
+                    style: IconButton.styleFrom(
+                      foregroundColor: listening ? Colors.red : null,
+                    ),
+                    icon: Icon(listening ? Icons.mic : Icons.mic_none),
+                  ),
+                  const SizedBox(width: 4),
                   FilledButton(
-                    onPressed: _loading ? null : _send,
+                    onPressed: busy ? null : _send,
                     child: _loading
                         ? const SizedBox(
                             width: 16,
@@ -190,4 +223,3 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
     );
   }
 }
-

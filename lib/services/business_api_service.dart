@@ -1,7 +1,9 @@
 import '../database/app_database.dart';
+import '../models/api_category.dart';
 import '../models/api_dashboard.dart';
 import '../models/api_expense.dart';
 import '../models/api_product.dart';
+import '../models/assistant_reply.dart';
 import '../models/api_repair_ticket.dart';
 import '../models/api_sale.dart';
 import '../models/auth_user.dart';
@@ -19,6 +21,20 @@ class BusinessApiService {
   Future<ApiDashboard> getDashboard() async {
     final json = await _api.get('/api/dashboard', auth: true);
     return ApiDashboard.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
+  Future<AssistantReply> askAssistant(String message) async {
+    final json = await _api.post(
+      '/api/assistant/chat',
+      auth: true,
+      body: {'message': message},
+      timeout: const Duration(seconds: 45),
+    );
+    final data = json['data'];
+    if (data is Map<String, dynamic>) {
+      return AssistantReply.fromJson(data);
+    }
+    return AssistantReply(text: data?.toString() ?? '');
   }
 
   Future<List<ApiProduct>> getProducts() async {
@@ -258,6 +274,23 @@ class BusinessApiService {
     return sale;
   }
 
+  Future<List<ApiCategory>> getCategories() async {
+    final json = await _api.get('/api/categories', auth: true);
+    final list = json['data'] as List<dynamic>? ?? [];
+    return list
+        .map((e) => ApiCategory.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<ApiCategory> createCategory(String name) async {
+    final json = await _api.post(
+      '/api/categories',
+      auth: true,
+      body: {'name': name},
+    );
+    return ApiCategory.fromJson(json['data'] as Map<String, dynamic>);
+  }
+
   Future<List<GlobalProduct>> searchGlobalProducts(String query) async {
     final json = await _api.get(
       '/api/global-products/search?q=${Uri.encodeQueryComponent(query)}',
@@ -297,6 +330,8 @@ class BusinessApiService {
     int reorderLevel = 5,
     String? department,
     DateTime? expiryDate,
+    int? categoryId,
+    String? subcategory,
   }) async {
     final json = await _api.post(
       '/api/products/from-global',
@@ -308,6 +343,9 @@ class BusinessApiService {
         'stock_quantity': stockQuantity,
         'reorder_level': reorderLevel,
         'department': department,
+        if (categoryId != null) 'category_id': categoryId,
+        if (subcategory != null && subcategory.trim().isNotEmpty)
+          'subcategory': subcategory.trim(),
         if (expiryDate != null)
           'expiry_date': expiryDate.toIso8601String().split('T').first,
       },
@@ -322,6 +360,8 @@ class BusinessApiService {
     int stockQuantity = 0,
     String? department,
     DateTime? expiryDate,
+    int? categoryId,
+    String? subcategory,
   }) async {
     final json = await _api.post(
       '/api/products/custom',
@@ -333,6 +373,9 @@ class BusinessApiService {
         'stock_quantity': stockQuantity,
         'is_active': true,
         'department': department,
+        if (categoryId != null) 'category_id': categoryId,
+        if (subcategory != null && subcategory.trim().isNotEmpty)
+          'subcategory': subcategory.trim(),
         if (expiryDate != null)
           'expiry_date': expiryDate.toIso8601String().split('T').first,
       },
@@ -363,6 +406,9 @@ class BusinessApiService {
     bool? isActive,
     String? department,
     DateTime? expiryDate,
+    int? categoryId,
+    String? subcategory,
+    bool updateCategory = false,
   }) async {
     final body = <String, dynamic>{};
     if (name != null) body['name'] = name;
@@ -372,6 +418,14 @@ class BusinessApiService {
     if (isActive != null) body['is_active'] = isActive;
     if (department != null) {
       body['department'] = department.isEmpty ? null : department;
+    }
+    if (updateCategory) {
+      final label = subcategory?.trim() ?? '';
+      if (label.isNotEmpty) {
+        body['subcategory'] = label;
+      } else {
+        body['category_id'] = categoryId;
+      }
     }
     if (expiryDate != null) {
       body['expiry_date'] = expiryDate.toIso8601String().split('T').first;

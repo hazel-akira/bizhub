@@ -72,5 +72,9 @@
 	<string>Akira Flow uses the camera to take photos of products in your inventory.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Akira Flow uses your photo library so you can attach product photos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Akira Flow uses the microphone so you can add products and run shop tasks by voice.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Akira Flow converts your voice into shop commands such as adding products or checking sales.</string>
 </dict>
 </plist>

@@ -10,6 +10,7 @@ import 'providers/business_api_provider.dart';
 import 'providers/business_profile_provider.dart';
 import 'providers/business_theme_provider.dart';
 import 'providers/database_provider.dart';
+import 'providers/voice_wake_provider.dart';
 import 'screens/login_screen.dart';
 import 'services/api_config_service.dart';
 import 'services/app_tour_service.dart';
@@ -29,6 +30,7 @@ import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/staff_screen.dart';
 import 'widgets/access_denied_page.dart';
+import 'widgets/voice_wake_bar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -100,6 +102,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
     _syncSalesReminder();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeStartCoachTour();
+      _syncVoiceWake();
     });
   }
 
@@ -134,7 +137,17 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _syncSalesReminder();
+      _syncVoiceWake();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      ref.read(voiceWakeProvider.notifier).pause();
     }
+  }
+
+  void _syncVoiceWake() {
+    final allowed = ref.read(authProvider).isAuthenticated &&
+        ref.read(staffAccessProvider).canOpenAssistant;
+    ref.read(voiceWakeProvider.notifier).sync(allowed: allowed);
   }
 
   Future<void> _syncSalesReminder() async {
@@ -327,9 +340,28 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
 
     final appBarTitle = auth.user?.businessName ?? config.appTitle;
 
-    ref.listen<int>(coachTourReplayTickProvider, (previous, next) {
+    ref.listen(coachTourReplayTickProvider, (previous, next) {
       if (previous == next) return;
       _maybeStartCoachTour(force: true);
+    });
+    ref.listen(authProvider, (previous, next) => _syncVoiceWake());
+    ref.listen(staffAccessProvider, (previous, next) => _syncVoiceWake());
+    ref.listen<VoiceWakeState>(voiceWakeProvider, (previous, next) {
+      if (!context.mounted) return;
+      if (_activeSection == _NavSection.assistant) return;
+      if (next.lastReply != null &&
+          next.lastReply != previous?.lastReply &&
+          next.phase != VoiceWakePhase.armed &&
+          next.phase != VoiceWakePhase.listening) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.lastReply!)),
+        );
+      }
+      if (next.error != null && next.error != previous?.error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.error!)),
+        );
+      }
     });
 
     return Scaffold(
@@ -492,7 +524,12 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
           ),
         ),
       ),
-      body: _screenFor(_activeSection),
+      body: Column(
+        children: [
+          Expanded(child: _screenFor(_activeSection)),
+          if (access.canOpenAssistant) const VoiceWakeBar(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentBottomIndex,
         onDestinationSelected: _setBottomSection,

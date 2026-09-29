@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\AssistantController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BusinessController;
 use App\Http\Controllers\Api\BusinessTypeController;
@@ -84,6 +85,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Business platform (multi-tenant)
     Route::middleware('business')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index']);
+        Route::post('/assistant/chat', [AssistantController::class, 'chat']);
 
         Route::get('/business', [BusinessController::class, 'show']);
         Route::put('/business', [BusinessController::class, 'update'])

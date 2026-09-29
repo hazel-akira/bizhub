@@ -83,7 +83,12 @@ class StaffAccess {
   bool get canOpenSettings => canManageSettings;
   bool get canOpenProduction => canManageStock || canAddProduct;
   bool get canOpenAssistant =>
-      canSell || canViewSales || canViewReports || canManageStock;
+      canSell ||
+      canViewSales ||
+      canViewReports ||
+      canManageStock ||
+      canAddProduct ||
+      canManageExpenses;
   bool get canOpenRepairs => canSell || canViewSales || canManageStock;
 
   static List<String> normalize(Iterable<String> roles) {

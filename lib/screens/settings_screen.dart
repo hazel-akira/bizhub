@@ -6,6 +6,7 @@ import '../providers/app_tour_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/business_api_provider.dart';
 import '../providers/database_provider.dart';
+import '../providers/voice_wake_provider.dart';
 import '../services/app_tour_service.dart';
 import '../services/sales_reminder_service.dart';
 import '../widgets/etims_settings_card.dart';
@@ -103,6 +104,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
           if (access.canOpenSettings) ...[
+            const SizedBox(height: 16),
+            const _HandsFreeVoiceCard(),
             const SizedBox(height: 16),
             const MpesaSettingsCard(),
             const SizedBox(height: 16),
@@ -337,6 +340,28 @@ class _AccountCard extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HandsFreeVoiceCard extends ConsumerWidget {
+  const _HandsFreeVoiceCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final voice = ref.watch(voiceWakeProvider);
+    return Card(
+      child: SwitchListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        secondary: const Icon(Icons.record_voice_over_outlined),
+        title: const Text('Hands-free “Hi Akira Flow”'),
+        subtitle: const Text(
+          'While the app is open, say “Hi Akira Flow, add product A selling 300 buying 250 stock 50” without tapping the mic.',
+        ),
+        value: voice.enabled,
+        onChanged: (value) =>
+            ref.read(voiceWakeProvider.notifier).setEnabled(value),
       ),
     );
   }

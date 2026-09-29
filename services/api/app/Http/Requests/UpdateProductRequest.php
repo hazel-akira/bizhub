@@ -26,6 +26,7 @@ class UpdateProductRequest extends FormRequest
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'subcategory' => ['nullable', 'string', 'max:255'],
             'department' => ['nullable', Rule::enum(ProductDepartment::class)],
             'cost_price' => ['sometimes', 'required', 'numeric', 'min:0'],
             'selling_price' => ['sometimes', 'numeric', 'min:0.01'],

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../core/layout.dart';
+import '../models/api_category.dart';
 import '../models/api_product.dart';
 import '../models/global_category.dart';
 import '../models/global_product.dart';
@@ -24,8 +25,11 @@ class InventoryScreen extends ConsumerStatefulWidget {
 }
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
+  static const _newSubcategoryId = -1;
+
   final _imagePicker = ImagePicker();
   String? _departmentFilter;
+  String? _subcategoryFilter;
 
   String? _requiredSellingPrice(String? v) {
     final n = double.tryParse((v ?? '').trim());
@@ -52,6 +56,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ' • Profit ${profit.toStringAsFixed(0)}'
         ' • Stock: ${product.stockQuantity}'
         '${config.showDepartmentPicker && product.departmentLabel != null ? ' • ${product.departmentLabel}' : ''}'
+        '${product.categoryName != null && product.categoryName!.isNotEmpty ? ' • ${product.categoryName}' : ''}'
         '${product.department == ProductDepartment.bakery && product.expiryDate != null ? ' • Exp ${AppLayout.dateLabel(product.expiryDate!)}' : ''}'
         '${product.unit != null ? ' • ${product.unit}' : ''}'
         '${product.isActive ? '' : ' • Inactive'}';
@@ -181,7 +186,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   Future<void> _showAddOptions(BuildContext context) async {
     final palette = ref.read(businessThemePaletteProvider);
-    final catalogSubtitle = ref.read(businessTypeConfigProvider).globalCatalogSubtitle;
+    final catalogSubtitle = ref
+        .read(businessTypeConfigProvider)
+        .globalCatalogSubtitle;
     await showCenteredDialog<void>(
       context,
       palette: palette,
@@ -458,10 +465,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final priceCtrl = TextEditingController();
     final costCtrl = TextEditingController();
     final stockCtrl = TextEditingController(text: '0');
+    final subcategoryNameCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     final config = ref.read(businessTypeConfigProvider);
     var department = ProductDepartment.fromBusinessType(config.id);
     DateTime? expiry;
+    final categories = await _shopCategories();
+    int? selectedCategoryId;
+    var addingSubcategory = false;
+    if (!context.mounted) return;
 
     final palette = ref.read(businessThemePaletteProvider);
     final saved = await showCenteredDialog<bool>(
@@ -511,6 +523,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     return null;
                   },
                 ),
+                ..._subcategoryFields(
+                  categories: categories,
+                  selectedId: selectedCategoryId,
+                  addingNew: addingSubcategory,
+                  newNameCtrl: subcategoryNameCtrl,
+                  onChanged: (id, addingNew) => setLocal(() {
+                    selectedCategoryId = id;
+                    addingSubcategory = addingNew;
+                  }),
+                ),
                 ..._departmentExpiryFields(
                   context: ctx,
                   department: department,
@@ -542,6 +564,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     if (saved != true) return;
 
     try {
+      final sub = _subcategoryPayload(
+        selectedId: selectedCategoryId,
+        addingNew: addingSubcategory,
+        newName: subcategoryNameCtrl.text,
+      );
       final product = await ref.read(addProductFromGlobalProvider)(
         globalProductId: global.id,
         sellingPrice: double.parse(priceCtrl.text.trim()),
@@ -549,6 +576,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         stockQuantity: int.parse(stockCtrl.text.trim()),
         department: config.showDepartmentPicker ? department : null,
         expiryDate: department == ProductDepartment.bakery ? expiry : null,
+        categoryId: sub.categoryId,
+        subcategory: sub.subcategory,
       );
       if (context.mounted) {
         await _offerProductImage(context, product);
@@ -567,10 +596,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final priceCtrl = TextEditingController();
     final costCtrl = TextEditingController();
     final stockCtrl = TextEditingController(text: '0');
+    final subcategoryNameCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     final config = ref.read(businessTypeConfigProvider);
     var department = ProductDepartment.fromBusinessType(config.id);
     DateTime? expiry;
+    final categories = await _shopCategories();
+    int? selectedCategoryId;
+    var addingSubcategory = false;
+    if (!context.mounted) return;
 
     final palette = ref.read(businessThemePaletteProvider);
     final saved = await showCenteredDialog<bool>(
@@ -620,12 +654,24 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 TextFormField(
                   controller: stockCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Stock quantity'),
+                  decoration: const InputDecoration(
+                    labelText: 'Stock quantity',
+                  ),
                   validator: (v) {
                     final n = int.tryParse(v ?? '');
                     if (n == null || n < 0) return 'Enter a valid quantity';
                     return null;
                   },
+                ),
+                ..._subcategoryFields(
+                  categories: categories,
+                  selectedId: selectedCategoryId,
+                  addingNew: addingSubcategory,
+                  newNameCtrl: subcategoryNameCtrl,
+                  onChanged: (id, addingNew) => setLocal(() {
+                    selectedCategoryId = id;
+                    addingSubcategory = addingNew;
+                  }),
                 ),
                 ..._departmentExpiryFields(
                   context: ctx,
@@ -658,6 +704,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     if (saved != true) return;
 
     try {
+      final sub = _subcategoryPayload(
+        selectedId: selectedCategoryId,
+        addingNew: addingSubcategory,
+        newName: subcategoryNameCtrl.text,
+      );
       final product = await ref.read(createApiProductProvider)(
         name: nameCtrl.text.trim(),
         sellingPrice: double.parse(priceCtrl.text.trim()),
@@ -665,6 +716,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         stockQuantity: int.parse(stockCtrl.text.trim()),
         department: config.showDepartmentPicker ? department : null,
         expiryDate: department == ProductDepartment.bakery ? expiry : null,
+        categoryId: sub.categoryId,
+        subcategory: sub.subcategory,
       );
       if (context.mounted) {
         await _offerProductImage(context, product);
@@ -694,10 +747,25 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final stockCtrl = TextEditingController(
       text: product.stockQuantity.toString(),
     );
+    final subcategoryNameCtrl = TextEditingController();
     final config = ref.read(businessTypeConfigProvider);
     var department = product.department;
     var expiry = product.expiryDate;
     final formKey = GlobalKey<FormState>();
+    var categories = await _shopCategories();
+    int? selectedCategoryId = product.categoryId;
+    var addingSubcategory = false;
+    if (product.categoryId != null &&
+        !categories.any((c) => c.id == product.categoryId)) {
+      categories = [
+        ...categories,
+        ApiCategory(
+          id: product.categoryId!,
+          name: product.categoryName ?? 'Subcategory',
+        ),
+      ];
+    }
+    if (!context.mounted) return;
     final palette = ref.read(businessThemePaletteProvider);
     final saved = await showCenteredDialog<bool>(
       context,
@@ -738,12 +806,24 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 TextFormField(
                   controller: stockCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Stock quantity'),
+                  decoration: const InputDecoration(
+                    labelText: 'Stock quantity',
+                  ),
                   validator: (v) {
                     final n = int.tryParse(v ?? '');
                     if (n == null || n < 0) return 'Enter a valid quantity';
                     return null;
                   },
+                ),
+                ..._subcategoryFields(
+                  categories: categories,
+                  selectedId: selectedCategoryId,
+                  addingNew: addingSubcategory,
+                  newNameCtrl: subcategoryNameCtrl,
+                  onChanged: (id, addingNew) => setLocal(() {
+                    selectedCategoryId = id;
+                    addingSubcategory = addingNew;
+                  }),
                 ),
                 ..._departmentExpiryFields(
                   context: ctx,
@@ -776,6 +856,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     if (saved != true) return;
 
     try {
+      final sub = _subcategoryPayload(
+        selectedId: selectedCategoryId,
+        addingNew: addingSubcategory,
+        newName: subcategoryNameCtrl.text,
+      );
       await ref.read(updateApiProductProvider)(
         productId: product.id,
         sellingPrice: double.parse(priceCtrl.text.trim()),
@@ -783,11 +868,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         stockQuantity: int.parse(stockCtrl.text.trim()),
         department: config.showDepartmentPicker ? department ?? '' : null,
         expiryDate: department == ProductDepartment.bakery ? expiry : null,
+        categoryId: sub.categoryId,
+        subcategory: sub.subcategory,
+        updateCategory: true,
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Product updated')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Product updated')));
       }
     } catch (e) {
       if (context.mounted) {
@@ -796,6 +884,91 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     }
+  }
+
+  Future<List<ApiCategory>> _shopCategories() async {
+    try {
+      return await ref.read(apiCategoriesProvider.future);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  ({int? categoryId, String? subcategory}) _subcategoryPayload({
+    required int? selectedId,
+    required bool addingNew,
+    required String newName,
+  }) {
+    if (addingNew) {
+      final name = newName.trim();
+      return (categoryId: null, subcategory: name.isEmpty ? null : name);
+    }
+    return (categoryId: selectedId, subcategory: null);
+  }
+
+  List<Widget> _subcategoryFields({
+    required List<ApiCategory> categories,
+    required int? selectedId,
+    required bool addingNew,
+    required TextEditingController newNameCtrl,
+    required void Function(int? id, bool addingNew) onChanged,
+  }) {
+    final knownIds = {for (final category in categories) category.id};
+    final dropdownValue = addingNew
+        ? _newSubcategoryId
+        : (selectedId != null && knownIds.contains(selectedId)
+              ? selectedId
+              : null);
+
+    return [
+      const SizedBox(height: 12),
+      DropdownButtonFormField<int?>(
+        key: ValueKey('subcategory-$dropdownValue'),
+        initialValue: dropdownValue,
+        decoration: const InputDecoration(
+          labelText: 'Subcategory',
+          helperText: 'Optional — same product can have different forms',
+        ),
+        isExpanded: true,
+        items: [
+          const DropdownMenuItem<int?>(value: null, child: Text('None')),
+          ...categories.map(
+            (category) => DropdownMenuItem<int?>(
+              value: category.id,
+              child: Text(category.name),
+            ),
+          ),
+          const DropdownMenuItem<int?>(
+            value: _newSubcategoryId,
+            child: Text('Add new subcategory…'),
+          ),
+        ],
+        onChanged: (value) {
+          if (value == _newSubcategoryId) {
+            onChanged(null, true);
+          } else {
+            onChanged(value, false);
+          }
+        },
+      ),
+      if (addingNew) ...[
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: newNameCtrl,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'New subcategory name',
+            hintText: 'e.g. Dry Goods, 500ml, Fresh',
+          ),
+          validator: (value) {
+            if (addingNew && (value == null || value.trim().isEmpty)) {
+              return 'Enter a subcategory name';
+            }
+            return null;
+          },
+        ),
+      ],
+    ];
   }
 
   List<Widget> _departmentExpiryFields({
@@ -814,10 +987,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     return [
       if (config.showDepartmentPicker) ...[
         const SizedBox(height: 16),
-        Text(
-          'Department',
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
+        Text('Department', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -870,9 +1040,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Future<void> _backupInventory(List<ApiProduct> products) async {
     final stamp = AppLayout.dateLabel(DateTime.now()).replaceAll('/', '-');
     final buffer = StringBuffer(
-      'name,department,selling_price,cost_price,stock,expiry,unit,active,added_at\n',
+      'name,subcategory,department,selling_price,cost_price,stock,expiry,unit,active,added_at\n',
     );
-    final sorted = [...products]..sort((a, b) {
+    final sorted = [...products]
+      ..sort((a, b) {
         final aAt = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
         final bAt = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
         return bAt.compareTo(aAt);
@@ -881,6 +1052,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       buffer.writeln(
         [
           BackupExport.cell(p.name),
+          BackupExport.cell(p.categoryName),
           BackupExport.cell(p.departmentLabel ?? p.department),
           BackupExport.cell(p.sellingPrice.toStringAsFixed(2)),
           BackupExport.cell(p.costPrice.toStringAsFixed(2)),
@@ -931,9 +1103,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   await _backupInventory(products);
                 } catch (e) {
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Backup failed: $e')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Backup failed: $e')));
                 }
               },
             ),
@@ -1023,20 +1195,33 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   final lowStock = products
                       .where((p) => p.stockQuantity <= 5)
                       .toList();
-                  final history = [...products]
-                      .where(
-                        (p) =>
-                            _departmentFilter == null ||
-                            p.department == _departmentFilter,
-                      )
-                      .toList()
-                    ..sort((a, b) {
-                      final aAt =
-                          a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-                      final bAt =
-                          b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-                      return bAt.compareTo(aAt);
-                    });
+                  final history =
+                      [...products]
+                          .where(
+                            (p) =>
+                                (_departmentFilter == null ||
+                                    p.department == _departmentFilter) &&
+                                (_subcategoryFilter == null ||
+                                    p.categoryName == _subcategoryFilter),
+                          )
+                          .toList()
+                        ..sort((a, b) {
+                          final aAt =
+                              a.createdAt ??
+                              DateTime.fromMillisecondsSinceEpoch(0);
+                          final bAt =
+                              b.createdAt ??
+                              DateTime.fromMillisecondsSinceEpoch(0);
+                          return bAt.compareTo(aAt);
+                        });
+                  final subcategoryNames =
+                      {
+                          for (final product in products)
+                            if (product.categoryName != null &&
+                                product.categoryName!.isNotEmpty)
+                              product.categoryName!,
+                        }.toList()
+                        ..sort();
 
                   return ListView(
                     padding: const EdgeInsets.all(16),
@@ -1078,11 +1263,33 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ),
                         const SizedBox(height: 8),
                       ],
+                      if (subcategoryNames.length > 1) ...[
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('All subcategories'),
+                              selected: _subcategoryFilter == null,
+                              onSelected: (_) =>
+                                  setState(() => _subcategoryFilter = null),
+                            ),
+                            ...subcategoryNames.map(
+                              (name) => ChoiceChip(
+                                label: Text(name),
+                                selected: _subcategoryFilter == name,
+                                onSelected: (_) =>
+                                    setState(() => _subcategoryFilter = name),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       Text(
                         'History',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -1113,7 +1320,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             isThreeLine: product.createdAt != null,
-                            onTap: (access.canManageStock ||
+                            onTap:
+                                (access.canManageStock ||
                                     access.canEditPrice ||
                                     access.canAddProduct)
                                 ? () => _editProduct(context, ref, product)
@@ -1126,7 +1334,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                   IconButton(
                                     visualDensity: VisualDensity.compact,
                                     iconSize: 20,
-                                    icon: const Icon(Icons.add_a_photo_outlined),
+                                    icon: const Icon(
+                                      Icons.add_a_photo_outlined,
+                                    ),
                                     onPressed: () =>
                                         _pickAndUploadImage(context, product),
                                     tooltip: 'Add photo',
