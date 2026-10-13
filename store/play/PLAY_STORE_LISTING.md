@@ -128,7 +128,7 @@ Save the listing.
 | Field | Enter |
 |-------|--------|
 | App category | **Business** |
-| Tags | Business management, Finance, Point of sale, Inventory |
+| Tags | Business management, Point of sale, Inventory |
 | Email (required) | your real support email |
 | Phone | optional, Kenyan number is fine |
 | Website | `https://akira-flow-privacy.vercel.app/support` |
@@ -218,7 +218,11 @@ Data is used for **App functionality** and **Account management**. Not sold. Not
 
 ### Financial features
 
-Your app **collects money for the merchant via M-Pesa**. Declare **Payments** / similar payment option if shown. Not a bank, not crypto, not loans, not a stored-value wallet for consumers.
+Select **My app doesn’t provide any financial features**.
+
+Do not tick Banking and loans, Payments and transfers (Mobile payments and digital wallets, Money transfer), Purchase agreements, Trading and funds, or Support services. A personal Play account that declares any of those is rejected under Play Console Requirements and can only publish that app from an organization account.
+
+M-Pesa STK, cash, card, and “credit / unpaid” are shop records. The customer pays the shop’s Till or Paybill through Safaricom. Akira Flow does not hold a wallet, send money between people, issue loans, or offer buy-now-pay-later. Unpaid balances are customer tabs, not a line of credit.
 
 ### Health
 
@@ -285,6 +289,7 @@ Review usually takes a few days. Common rejects:
 | Misleading screenshots | Replace marketing shots with captures from a real signed-in session |
 | Incomplete Data safety | Match contacts, photos, and M-Pesa sharing |
 | Login wall with no demo account | Fill App access with a reviewer login |
+| Play Console Requirements / organization account | Category **Business**. Financial features = **doesn’t provide any**. Health **No**. Government **No**. Remove a Finance tag. Then send the release for review again |
 
 ---
 

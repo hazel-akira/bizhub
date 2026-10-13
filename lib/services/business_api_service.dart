@@ -47,8 +47,11 @@ class BusinessApiService {
     return map;
   }
 
-  Future<List<ApiSale>> getSales() async {
-    final json = await _api.get('/api/sales', auth: true);
+  Future<List<ApiSale>> getSales({DateTime? from}) async {
+    final path = from == null
+        ? '/api/sales'
+        : '/api/sales?from=${Uri.encodeQueryComponent(from.toIso8601String())}';
+    final json = await _api.get(path, auth: true);
     final list = json['data'] as List<dynamic>? ?? [];
     return list
         .map((e) => ApiSale.fromJson(e as Map<String, dynamic>))

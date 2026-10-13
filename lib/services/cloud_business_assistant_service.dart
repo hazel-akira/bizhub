@@ -1,4 +1,5 @@
 import '../models/api_sale.dart';
+import 'assistant_command.dart';
 import 'business_api_service.dart';
 
 class CloudBusinessAssistantService {
@@ -7,69 +8,20 @@ class CloudBusinessAssistantService {
   final BusinessApiService _api;
 
   Future<String> answer(String input) async {
-    final q = input.trim().toLowerCase();
-    if (q.isEmpty) {
+    if (input.trim().isEmpty) {
       return 'Ask me about sales, profit, or debts, and I will break it down clearly.';
     }
 
-    if (_matchAny(q, [
-      'summary',
-      'today performance',
-      'today summary',
-      'dashboard',
-    ])) {
-      return _todaySummary();
-    }
-
-    if (_matchAny(q, ['profit today', 'today profit', 'am i making profit'])) {
-      return _profitToday();
-    }
-
-    if (_matchAny(q, [
-      'revenue today',
-      'today revenue',
-      'sales today amount',
-      'money today',
-    ])) {
-      return _revenueToday();
-    }
-
-    if (_matchAny(q, ['samosas sold today', 'sold today', 'today quantity'])) {
-      return _samosasSoldToday();
-    }
-
-    if (_matchAny(q, ['who owes', 'unpaid customers', 'debtors'])) {
-      return _whoOwes();
-    }
-
-    if (_matchAny(q, ['unpaid total', 'total debt', 'how much owed'])) {
-      return _unpaidTotal();
-    }
-
-    if (_matchAny(q, [
-      'best selling',
-      'most sold',
-      'top product',
-      'this week best',
-    ])) {
-      return _bestSellingThisWeek();
-    }
-
-    return 'I can help with:\n'
-        '- today summary\n'
-        '- profit today\n'
-        '- revenue today\n'
-        '- samosas sold today\n'
-        '- unpaid total\n'
-        '- who owes\n'
-        '- best selling this week';
-  }
-
-  bool _matchAny(String q, List<String> keys) {
-    for (final k in keys) {
-      if (q.contains(k)) return true;
-    }
-    return false;
+    return switch (matchAssistantCommand(input)) {
+      AssistantIntent.todaySummary => _todaySummary(),
+      AssistantIntent.profit => _profitToday(),
+      AssistantIntent.revenue => _revenueToday(),
+      AssistantIntent.unitsSold => _samosasSoldToday(),
+      AssistantIntent.whoOwes => _whoOwes(),
+      AssistantIntent.unpaidTotal => _unpaidTotal(),
+      AssistantIntent.bestSelling => _bestSellingThisWeek(),
+      AssistantIntent.unknown => assistantHelp,
+    };
   }
 
   Future<String> _todaySummary() async {
@@ -127,7 +79,7 @@ class CloudBusinessAssistantService {
 
     final byCustomer = <String, double>{};
     for (final sale in unpaid) {
-      final name = sale.customerName ?? 'Customer ${sale.customerId}';
+      final name = sale.displayLabel;
       byCustomer[name] = (byCustomer[name] ?? 0) + sale.outstanding;
     }
 
@@ -138,7 +90,10 @@ class CloudBusinessAssistantService {
   }
 
   Future<String> _bestSellingThisWeek() async {
-    final sales = await _api.getSales();
+    final now = DateTime.now();
+    final weekStart = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    final sales = await _api.getSales(from: weekStart);
     final weekSales = _salesThisWeek(sales);
     if (weekSales.isEmpty) return 'No sales this week yet.';
 

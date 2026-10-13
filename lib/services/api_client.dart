@@ -24,7 +24,7 @@ class ApiClient {
     Duration? timeout,
   })  : _client = client ?? http.Client(),
         _explicitBaseUrl = baseUrl,
-        _timeout = timeout ?? const Duration(seconds: 12);
+        _timeout = timeout ?? const Duration(seconds: 25);
 
   final http.Client _client;
   final String? _explicitBaseUrl;
@@ -122,24 +122,19 @@ class ApiClient {
         ),
       );
 
-      final streamed = await request.send().timeout(
-        _timeout,
-        onTimeout: () {
-          throw ApiException(
-            'Upload timed out. Check your internet connection and try again.',
-          );
-        },
-      );
+      final streamed = await request.send().timeout(_timeout);
       final response = await http.Response.fromStream(streamed);
       return _decode(response);
     } on ApiException {
       rethrow;
     } on SocketException {
-      throw ApiException(await _connectionHelp());
+      throw ApiException(_unreachableMessage);
     } on TimeoutException {
-      throw ApiException(await _connectionHelp());
+      throw ApiException(_slowServerMessage);
     } on http.ClientException {
-      throw ApiException(await _connectionHelp());
+      throw ApiException(_unreachableMessage);
+    } on IOException {
+      throw ApiException(_unreachableMessage);
     }
   }
 
@@ -161,29 +156,25 @@ class ApiClient {
     Duration? timeout,
   }) async {
     try {
-      return await request().timeout(
-        timeout ?? _timeout,
-        onTimeout: () {
-          throw ApiException(
-            'Request timed out. Check your internet connection and try again.',
-          );
-        },
-      );
+      return await request().timeout(timeout ?? _timeout);
     } on ApiException {
       rethrow;
     } on SocketException {
-      throw ApiException(await _connectionHelp());
+      throw ApiException(_unreachableMessage);
     } on TimeoutException {
-      throw ApiException(await _connectionHelp());
+      throw ApiException(_slowServerMessage);
     } on http.ClientException {
-      throw ApiException(await _connectionHelp());
+      throw ApiException(_unreachableMessage);
+    } on IOException {
+      throw ApiException(_unreachableMessage);
     }
   }
 
-  Future<String> _connectionHelp() async {
-    final url = await _resolveBaseUrl();
-    return 'Cannot reach the API at $url. Check your internet connection and try again.';
-  }
+  static const _slowServerMessage =
+      'The server took too long to respond. Pull to refresh and try again.';
+
+  static const _unreachableMessage =
+      'Cannot reach the server right now. Try again in a moment.';
 
   Map<String, String> _headers({bool auth = false}) {
     final headers = <String, String>{
@@ -197,9 +188,19 @@ class ApiClient {
   }
 
   Map<String, dynamic> _decode(http.Response response) {
-    final body = response.body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(response.body) as Map<String, dynamic>;
+    final Map<String, dynamic> body;
+    if (response.body.isEmpty) {
+      body = <String, dynamic>{};
+    } else {
+      try {
+        final decoded = jsonDecode(response.body);
+        body = decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+      } on FormatException {
+        throw ApiException(
+          'The server sent an unexpected response. Try again in a moment.',
+        );
+      }
+    }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return body;
