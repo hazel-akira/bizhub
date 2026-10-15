@@ -20,12 +20,13 @@ class UnpaidCustomersScreen extends ConsumerStatefulWidget {
 class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
   bool _busy = false;
 
+  String _loadError(Object e) => _paymentError(e);
+
   String _paymentError(Object e) {
-    final raw = e.toString().replaceFirst('ApiException: ', '');
-    if (raw.toLowerCase().contains('timed out')) {
-      return 'Could not reach the server. Check your connection and try again.';
-    }
-    return raw;
+    return e
+        .toString()
+        .replaceFirst('ApiException: ', '')
+        .replaceFirst('Exception: ', '');
   }
 
   Future<void> _markAsPaid(UnpaidCustomerDebtRow row) async {
@@ -140,7 +141,17 @@ class _UnpaidCustomersScreenState extends ConsumerState<UnpaidCustomersScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('Error: $e'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_loadError(e)),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _refreshUI,
+                      child: const Text('Try again'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

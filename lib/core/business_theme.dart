@@ -168,6 +168,13 @@ class BusinessThemePalette {
       secondary: Color(0xFF757575),
       accent: Color(0xFF212121),
     ),
+    'vehicle_spares': BusinessThemePalette(
+      id: 'vehicle_spares',
+      label: 'Vehicle Spare Parts',
+      primary: Color(0xFF1565C0),
+      secondary: Color(0xFF455A64),
+      accent: Color(0xFFFF6F00),
+    ),
     'cybercafe': BusinessThemePalette(
       id: 'cybercafe',
       label: 'Cyber / Tech',

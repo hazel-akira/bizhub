@@ -18,8 +18,13 @@ class SaleController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $from = $request->query('from');
+
         return $this->success(
-            $this->sales->listForBusiness($request->user()->business_id)
+            $this->sales->listForBusiness(
+                $request->user()->business_id,
+                is_string($from) ? $from : null,
+            )
         );
     }
 

@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -123,25 +124,73 @@ class SaleService
         return $this->formatSale($sale);
     }
 
-    public function listForBusiness(int $businessId): Collection
+    public function listForBusiness(int $businessId, ?string $from = null): Collection
     {
-        return Sale::forBusiness($businessId)
+        $query = Sale::forBusiness($businessId)
             ->with(['items.product', 'customer', 'payments'])
-            ->orderByDesc('sale_date')
-            ->get()
-            ->map(fn (Sale $sale) => $this->formatSale($sale));
+            ->orderByDesc('sale_date');
+
+        if (is_string($from) && trim($from) !== '') {
+            try {
+                $query->where('sale_date', '>=', \Carbon\Carbon::parse($from));
+            } catch (\Throwable) {
+                // A bad date filter should not fail the sales list.
+            }
+        }
+
+        return $query->get()->map(fn (Sale $sale) => $this->formatSale($sale));
     }
 
     public function listUnpaidForBusiness(int $businessId): Collection
     {
-        return $this->listForBusiness($businessId)
+        return $this->unpaidSalesQuery($businessId)
+            ->with(['items.product', 'customer', 'payments'])
+            ->orderByDesc('sale_date')
+            ->get()
+            ->map(fn (Sale $sale) => $this->formatSale($sale))
             ->filter(fn (array $sale) => ($sale['outstanding'] ?? 0) > 0.001)
             ->values();
     }
 
     public function unpaidTotalForBusiness(int $businessId): float
     {
-        return (float) $this->listUnpaidForBusiness($businessId)->sum('outstanding');
+        if (! Schema::hasTable('sale_payments')) {
+            return round((float) Sale::forBusiness($businessId)
+                ->whereRaw($this->normalizedMethodSql()." NOT IN ('cash', 'mpesa', 'mpesastk', 'card')")
+                ->sum('total_amount'), 2);
+        }
+
+        $paid = $this->paidAmountSql();
+
+        return round((float) $this->unpaidSalesQuery($businessId)
+            ->sum(DB::raw("sales.total_amount - {$paid}")), 2);
+    }
+
+    private function unpaidSalesQuery(int $businessId): Builder
+    {
+        $paid = $this->paidAmountSql();
+        $method = $this->normalizedMethodSql();
+
+        return Sale::forBusiness($businessId)
+            ->whereRaw("sales.total_amount - {$paid} > 0.001")
+            ->where(function (Builder $query) use ($method) {
+                $query->whereRaw("{$method} NOT IN ('cash', 'mpesa', 'mpesastk', 'card')")
+                    ->orWhereExists(function ($sub) {
+                        $sub->selectRaw('1')
+                            ->from('sale_payments')
+                            ->whereColumn('sale_payments.sale_id', 'sales.id');
+                    });
+            });
+    }
+
+    private function paidAmountSql(): string
+    {
+        return 'COALESCE((SELECT SUM(sale_payments.amount) FROM sale_payments WHERE sale_payments.sale_id = sales.id), 0)';
+    }
+
+    private function normalizedMethodSql(): string
+    {
+        return "LOWER(REPLACE(REPLACE(REPLACE(COALESCE(sales.payment_method, ''), ' ', ''), '-', ''), '_', ''))";
     }
 
     public function findForBusiness(int $businessId, int $saleId): ?Sale
@@ -206,6 +255,7 @@ class SaleService
         $total = (float) $sale->total_amount;
         $outstanding = max(0, round($total - $amountPaid, 2));
         $method = $this->normalizePaymentMethod((string) $sale->payment_method);
+        $hasUnitCost = Schema::hasColumn('sale_items', 'unit_cost');
 
         if ($this->isCollectedAtSale($method) && $sale->payments->isEmpty()) {
             $amountPaid = $total;
@@ -227,9 +277,9 @@ class SaleService
             'is_paid' => $outstanding <= 0.001,
             'sale_date' => $sale->sale_date?->toIso8601String(),
             'created_at' => $sale->created_at?->toIso8601String(),
-            'items' => $sale->items->map(function ($item) {
+            'items' => $sale->items->map(function ($item) use ($hasUnitCost) {
                 $unitCost = 0.0;
-                if (Schema::hasColumn('sale_items', 'unit_cost') && $item->unit_cost !== null) {
+                if ($hasUnitCost && $item->unit_cost !== null) {
                     $unitCost = (float) $item->unit_cost;
                 } elseif ($item->product) {
                     $unitCost = (float) $item->product->cost_price;

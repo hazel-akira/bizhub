@@ -84,6 +84,8 @@ class BusinessTypeConfig {
         return 'e.g. Stock, Rent, Packaging';
       case 'hardware_store':
         return 'e.g. Stock, Transport, Rent';
+      case 'vehicle_spares':
+        return 'e.g. Stock, Transport, Tools';
       case 'agrovet':
         return 'e.g. Stock, Licenses, Transport';
       case 'electronics_shop':
@@ -369,6 +371,26 @@ class BusinessTypeConfig {
       emptyCatalogHint: 'Add cement, nails, iron sheets, paint, pipes, and locks.',
       globalCatalogSubtitle: 'Cement, nails, iron sheets, paint, and more',
       productIcon: Icons.hardware_outlined,
+    ),
+    'vehicle_spares': BusinessTypeConfig(
+      id: 'vehicle_spares',
+      label: 'Vehicle Spare Parts',
+      appTitle: 'Akira Flow',
+      isFoodBusiness: false,
+      unitsSoldLabel: 'Units sold',
+      primaryQuickActionLabel: 'New sale',
+      primaryQuickActionIcon: Icons.point_of_sale,
+      secondaryQuickActionLabel: 'Inventory',
+      secondaryQuickActionIcon: Icons.directions_car_outlined,
+      showOrdersNav: false,
+      showInventoryNav: true,
+      showProfitNav: true,
+      showProductionDrawer: false,
+      productNoun: 'part',
+      emptyCatalogHint:
+          'Add oil filters, brake pads, spark plugs, belts, and bulbs.',
+      globalCatalogSubtitle: 'Filters, brake pads, spark plugs, batteries, and more',
+      productIcon: Icons.directions_car_outlined,
     ),
     'agrovet': BusinessTypeConfig(
       id: 'agrovet',

@@ -793,6 +793,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                               ),
                         ),
                       ),
+
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
                       onPressed: () {

@@ -195,6 +195,76 @@ class GlobalCatalogTest extends TestCase
         $this->assertNotContains('Baby Products', $allowed);
         $this->assertNotContains('Bakery', $allowed);
         $this->assertNotContains('Phone Repair Parts', $allowed);
+        $this->assertNotContains('Vehicle Spare Parts', $allowed);
+    }
+
+    public function test_vehicle_spares_catalog_is_car_parts_only(): void
+    {
+        $allowed = BusinessType::VehicleSpares->allowedGlobalCatalogCategories();
+        $this->assertSame(['Vehicle Spare Parts'], $allowed);
+
+        $catalog = require database_path('data/global_product_catalog.php');
+        $parts = array_column($catalog['Vehicle Spare Parts'], 'name');
+        $this->assertContains('Oil filter', $parts);
+        $this->assertContains('Brake pads', $parts);
+        $this->assertNotContains('Cement bag', $parts);
+    }
+
+    public function test_vehicle_spares_api_catalog_excludes_groceries(): void
+    {
+        $this->seedCatalog();
+        $this->actingAsBusiness('vehicle_spares', 'Spare Parts');
+
+        $categories = collect($this->getJson('/api/global-categories')->json('data.categories'))
+            ->pluck('name')
+            ->all();
+        $this->assertSame(['Vehicle Spare Parts'], $categories);
+
+        $names = collect($this->getJson('/api/global-products')->json('data'))
+            ->pluck('name')
+            ->all();
+        $this->assertContains('Brake pads', $names);
+        $this->assertNotContains('Sukuma wiki', $names);
+    }
+
+    public function test_vehicle_spares_setup_seeds_parts_without_prices(): void
+    {
+        $business = Business::create([
+            'name' => 'Westlands Spares',
+            'business_type' => 'vehicle_spares',
+            'is_active' => true,
+        ]);
+
+        (new BusinessSetupService())->setup($business, BusinessType::VehicleSpares);
+
+        foreach (['Filters', 'Brakes', 'Engine', 'Electrical', 'Body'] as $category) {
+            $this->assertTrue(
+                Category::query()
+                    ->where('business_id', $business->id)
+                    ->where('name', $category)
+                    ->exists(),
+                "Missing vehicle spares category {$category}"
+            );
+        }
+
+        foreach (['Oil filter', 'Brake pads', 'Spark plug', 'Car battery'] as $name) {
+            $this->assertDatabaseHas('products', [
+                'business_id' => $business->id,
+                'name' => $name,
+                'selling_price' => 0,
+            ]);
+        }
+    }
+
+    public function test_business_types_include_vehicle_spares(): void
+    {
+        $this->getJson('/api/business-types')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => 'vehicle_spares',
+                'label' => 'Vehicle Spare Parts',
+                'emoji' => '🚗',
+            ]);
     }
 
     public function test_baby_shop_catalog_is_baby_products_only(): void

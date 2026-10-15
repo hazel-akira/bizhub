@@ -19,6 +19,7 @@ enum BusinessType: string
     case Cybercafe = 'cybercafe';
     case Agrovet = 'agrovet';
     case HardwareStore = 'hardware_store';
+    case VehicleSpares = 'vehicle_spares';
     case FoodVendor = 'food_vendor';
     case SmallRestaurant = 'small_restaurant';
     case Pharmacy = 'pharmacy';
@@ -45,6 +46,7 @@ enum BusinessType: string
             self::Cybercafe => 'Cyber Cafe',
             self::Agrovet => 'Agrovets',
             self::HardwareStore => 'Hardware Store',
+            self::VehicleSpares => 'Vehicle Spare Parts',
             self::FoodVendor => 'Food Vendors',
             self::SmallRestaurant => 'Small Restaurant',
             self::Pharmacy => 'Pharmacies',
@@ -73,6 +75,7 @@ enum BusinessType: string
             self::Cybercafe => 'Printing, photocopy, laminating, binding, scanning, and flash disks.',
             self::Agrovet => 'Fertilizer, maize seed, dewormers, acaricides, vaccines, and sprayers.',
             self::HardwareStore => 'Cement, nails, iron sheets, paint, brushes, PVC pipes, locks, and tools.',
+            self::VehicleSpares => 'Oil filters, brake pads, spark plugs, belts, bulbs, batteries, and other car parts.',
             self::FoodVendor => 'Street food, snacks, and quick bites.',
             self::SmallRestaurant => 'Sit-down meals, drinks, and table service.',
             self::Pharmacy => 'Medicines, health products, and personal care.',
@@ -101,6 +104,7 @@ enum BusinessType: string
             self::Cybercafe => '🖨️',
             self::Agrovet => '🌾',
             self::HardwareStore => '⚒️',
+            self::VehicleSpares => '🚗',
             self::FoodVendor => '🍽️',
             self::SmallRestaurant => '🍛',
             self::Pharmacy => '💊',
@@ -117,7 +121,7 @@ enum BusinessType: string
             self::MamaMboga, self::Butchery, self::DairyShop, self::PoultryShop => 'Fresh Foods & Perishables',
             self::GroceryShop, self::Wholesale, self::LiquorStore, self::GasWater => 'Retail & FMCG',
             self::Boutique, self::BeautyShop, self::ShoeStore => 'Fashion & Lifestyle',
-            self::Salon, self::Cybercafe, self::Agrovet, self::HardwareStore => 'Service & Artisan',
+            self::Salon, self::Cybercafe, self::Agrovet, self::HardwareStore, self::VehicleSpares => 'Service & Artisan',
             self::FoodVendor, self::SmallRestaurant => 'Food Service',
             self::Pharmacy, self::ElectronicsShop => 'Other',
             self::BabyShop, self::Bakery, self::PhoneRepair => 'Baby, Bakery & Repairs',
@@ -143,6 +147,7 @@ enum BusinessType: string
             self::Cybercafe => ['Printing', 'Binding', 'Stationery', 'Accessories'],
             self::Agrovet => ['Fertilizer', 'Seeds', 'Livestock', 'Equipment'],
             self::HardwareStore => ['Building', 'Paint', 'Plumbing', 'Tools'],
+            self::VehicleSpares => ['Filters', 'Brakes', 'Engine', 'Electrical', 'Body'],
             self::FoodVendor => ['Snacks', 'Beverages', 'Ready Meals'],
             self::SmallRestaurant => ['Appetizers', 'Main Course', 'Drinks', 'Desserts'],
             self::Pharmacy => ['Medicines', 'OTC', 'Personal Care', 'Supplements'],
@@ -172,6 +177,7 @@ enum BusinessType: string
             self::Cybercafe => ['Paper', 'Ink', 'Internet', 'Rent', 'Equipment'],
             self::Agrovet => ['Stock', 'Licenses', 'Rent', 'Transport'],
             self::HardwareStore => ['Stock', 'Rent', 'Transport', 'Utilities'],
+            self::VehicleSpares => ['Stock', 'Rent', 'Transport', 'Tools'],
             self::FoodVendor => ['Ingredients', 'Transport', 'Gas', 'Labour'],
             self::SmallRestaurant => ['Ingredients', 'Gas', 'Rent', 'Labour'],
             self::Pharmacy => ['Stock', 'Licenses', 'Rent', 'Utilities'],
@@ -244,6 +250,16 @@ enum BusinessType: string
                 $item('Live chicken', 'Live Birds'),
                 $item('Broiler (dressed)', 'Dressed Chicken'),
                 $item('Chick mash', 'Feeds'),
+            ],
+            self::VehicleSpares => [
+                $item('Oil filter', 'Filters'),
+                $item('Air filter', 'Filters'),
+                $item('Brake pads', 'Brakes'),
+                $item('Spark plug', 'Engine'),
+                $item('Fan belt', 'Engine'),
+                $item('Headlight bulb', 'Electrical'),
+                $item('Car battery', 'Electrical'),
+                $item('Wiper blade', 'Body'),
             ],
             default => [],
         };
@@ -343,6 +359,9 @@ enum BusinessType: string
             ],
             self::HardwareStore => [
                 GlobalCatalogCategory::Hardware->value,
+            ],
+            self::VehicleSpares => [
+                GlobalCatalogCategory::VehicleSpareParts->value,
             ],
             self::FoodVendor => [
                 GlobalCatalogCategory::FoodAndSnacks->value,
