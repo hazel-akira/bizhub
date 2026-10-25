@@ -16,7 +16,6 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen> {
   final _amountController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   int? _selectedSaleId;
-  String _method = 'cash';
 
   @override
   void dispose() {
@@ -31,7 +30,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen> {
     await ref.read(addPaymentProvider)(
           saleId: _selectedSaleId!,
           amount: amount,
-          method: _method,
+          method: 'cash',
         );
     ref.invalidate(allPaymentsProvider);
     ref.invalidate(allSalesProvider);
@@ -80,19 +79,6 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen> {
                             final n = double.tryParse(v ?? '');
                             if (n == null || n <= 0) return 'Enter valid amount';
                             return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: _method,
-                          decoration:
-                              const InputDecoration(labelText: 'Method'),
-                          items: const [
-                            DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                            DropdownMenuItem(value: 'mpesa', child: Text('MPESA')),
-                          ],
-                          onChanged: (v) {
-                            if (v != null) setState(() => _method = v);
                           },
                         ),
                         const SizedBox(height: 12),

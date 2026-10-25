@@ -50,7 +50,7 @@ class _AppIntroScreenState extends State<AppIntroScreen> {
       icon: Icons.sell_outlined,
       title: 'Record sales fast',
       body:
-          'Use the Sales tab to take cash, M-Pesa, or credit sales. Receipts stay linked to your inventory.',
+          'Use the Sales tab to record cash sales or save a sale as unpaid. Receipts stay linked to your inventory.',
       color: Color(0xFFC75B12),
     ),
     AppIntroPage(
@@ -64,7 +64,7 @@ class _AppIntroScreenState extends State<AppIntroScreen> {
       icon: Icons.menu_open,
       title: 'More tools in the menu',
       body:
-          'Open the side menu for customers, staff, settings, M-Pesa, and KRA eTIMS options.',
+          'Open the side menu for customers, staff, settings, and KRA eTIMS options.',
       color: Color(0xFF6A1B9A),
     ),
   ];

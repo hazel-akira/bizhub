@@ -52,53 +52,30 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final amountCtrl = TextEditingController(
       text: item.sale.totalAmount.toStringAsFixed(0),
     );
-    String method = 'cash';
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Record Payment'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Payment amount',
-                  prefixText: 'KES ',
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text('Method', style: Theme.of(ctx).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              SegmentedButton<String>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(value: 'cash', label: Text('Cash')),
-                  ButtonSegment(value: 'mpesa', label: Text('M-Pesa')),
-                ],
-                selected: {method},
-                onSelectionChanged: (selected) {
-                  if (selected.isEmpty) return;
-                  setLocal(() => method = selected.first);
-                },
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('Record cash received'),
+        content: TextFormField(
+          controller: amountCtrl,
+          keyboardType: const TextInputType.numberWithOptions(
+            decimal: true,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Confirm'),
-            ),
-          ],
+          decoration: const InputDecoration(
+            labelText: 'Amount received',
+            prefixText: 'KES ',
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm'),
+          ),
+        ],
       ),
     );
     if (ok != true) return;
@@ -108,7 +85,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       await ref.read(addPaymentProvider)(
         saleId: item.sale.id,
         amount: amount,
-        method: method,
+        method: 'cash',
       );
       _refreshSalesUI();
     } catch (e) {
@@ -128,55 +105,37 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final amountCtrl = TextEditingController(
       text: sale.outstanding.toStringAsFixed(0),
     );
-    String method = 'cash';
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Record Payment'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Outstanding: KES ${sale.outstanding.toStringAsFixed(0)}'),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Payment amount',
-                  prefixText: 'KES ',
-                ),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Record cash received'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Outstanding: KES ${sale.outstanding.toStringAsFixed(0)}'),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: amountCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
               ),
-              const SizedBox(height: 16),
-              Text('Method', style: Theme.of(ctx).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              SegmentedButton<String>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(value: 'cash', label: Text('Cash')),
-                  ButtonSegment(value: 'mpesa', label: Text('M-Pesa')),
-                ],
-                selected: {method},
-                onSelectionChanged: (selected) {
-                  if (selected.isEmpty) return;
-                  setLocal(() => method = selected.first);
-                },
+              decoration: const InputDecoration(
+                labelText: 'Amount received',
+                prefixText: 'KES ',
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Confirm'),
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm'),
+          ),
+        ],
       ),
     );
     if (ok != true) return;
@@ -186,7 +145,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
       await ref.read(recordSalePaymentProvider)(
         saleId: sale.id,
         amount: amount,
-        method: method,
+        method: 'cash',
       );
       _refreshSalesUI();
     } catch (e) {

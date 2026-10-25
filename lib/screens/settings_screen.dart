@@ -10,7 +10,6 @@ import '../providers/voice_wake_provider.dart';
 import '../services/app_tour_service.dart';
 import '../services/sales_reminder_service.dart';
 import '../widgets/etims_settings_card.dart';
-import '../widgets/mpesa_settings_card.dart';
 import '../widgets/access_denied_page.dart';
 import 'app_intro_screen.dart';
 import 'login_screen.dart';
@@ -106,8 +105,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (access.canOpenSettings) ...[
             const SizedBox(height: 16),
             const _HandsFreeVoiceCard(),
-            const SizedBox(height: 16),
-            const MpesaSettingsCard(),
             const SizedBox(height: 16),
             const EtimsSettingsCard(),
             const SizedBox(height: 16),

@@ -6,8 +6,6 @@ import '../../models/api_product.dart';
 import '../../providers/api_data_provider.dart';
 import '../../providers/business_api_provider.dart';
 import '../../providers/customers_provider.dart';
-import '../../screens/sale_receipt_screen.dart';
-import 'mpesa_checkout_flow.dart';
 
 class GenericQuickSalePanel extends ConsumerStatefulWidget {
   const GenericQuickSalePanel({
@@ -155,39 +153,6 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
         if (customerId == null) return;
       }
 
-      if (method == 'mpesa') {
-        if (!mounted) return;
-        final paid = await MpesaCheckoutFlow.collect(
-          context: context,
-          ref: ref,
-          amount: _cartTotal,
-          reference: 'sale_${DateTime.now().millisecondsSinceEpoch}',
-        );
-        if (paid == null) return;
-        if (!mounted) return;
-
-        final sale = await ref.read(createApiSaleWithItemsProvider)(
-          items: _cart.values
-              .map((line) => (productId: line.product.id, quantity: line.quantity))
-              .toList(),
-          paymentMethod: 'mpesa',
-        );
-
-        widget.onSaleRecorded();
-        if (!mounted) return;
-        setState(() => _cart.clear());
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => SaleReceiptScreen(
-              sale: sale,
-              mpesaReceiptNumber: paid.mpesaReceiptNumber,
-              phone: paid.phone,
-            ),
-          ),
-        );
-        return;
-      }
-
       await ref.read(createApiSaleWithItemsProvider)(
         items: _cart.values
             .map((line) => (productId: line.product.id, quantity: line.quantity))
@@ -204,9 +169,7 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
           content: Text(
             method == 'credit'
                 ? 'Sale saved on credit — settle in Customers → Unpaid'
-                : method == 'mpesa'
-                    ? 'M-Pesa sale recorded'
-                    : 'Cash sale recorded',
+                : 'Cash sale recorded',
           ),
         ),
       );
@@ -278,7 +241,7 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Tap Add on a product, then pay with cash or M-Pesa.',
+                      'Tap Add on a product, then record a cash sale or save it as unpaid.',
                       style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                     ),
                     const SizedBox(height: 12),
@@ -445,31 +408,14 @@ class _GenericQuickSalePanelState extends ConsumerState<GenericQuickSalePanel> {
                       ),
                     ],
                     const SizedBox(height: 12),
-                    AdaptiveButtonRow(
-                      children: [
-                        FilledButton.icon(
-                          onPressed: _canPay
-                              ? () => _submit(method: 'cash')
-                              : null,
-                          icon: const Icon(Icons.payments),
-                          label: const Text(
-                            'Pay cash',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        FilledButton.tonalIcon(
-                          onPressed: _canPay
-                              ? () => _submit(method: 'mpesa')
-                              : null,
-                          icon: const Icon(Icons.qr_code_2),
-                          label: const Text(
-                            'Pay M-Pesa',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                    FilledButton.icon(
+                      onPressed: _canPay ? () => _submit(method: 'cash') : null,
+                      icon: const Icon(Icons.point_of_sale),
+                      label: const Text(
+                        'Record cash sale',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     if (_canPay) ...[
                       const SizedBox(height: 8),

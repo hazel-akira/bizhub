@@ -374,7 +374,7 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen>
               key: _menuKey,
               title: 'Menu',
               description:
-                  'Open customers, staff, settings, M-Pesa, and KRA eTIMS from here.',
+                  'Open customers, staff, settings, and KRA eTIMS from here.',
               child: IconButton(
                 icon: const Icon(Icons.menu),
                 tooltip: 'Menu',
@@ -560,7 +560,7 @@ String _tourDescriptionFor(_NavSection section) {
     _NavSection.dashboard =>
       'Your home snapshot — today’s sales, costs, and quick status.',
     _NavSection.sales =>
-      'Record cash, M-Pesa, card, or credit sales for the shop.',
+      'Record cash sales, or save a sale as unpaid, for the shop.',
     _NavSection.inventory =>
       'Manage products, prices, and stock quantities.',
     _NavSection.orders =>

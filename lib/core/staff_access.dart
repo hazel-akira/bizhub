@@ -28,7 +28,7 @@ class StaffAccess {
     StaffRoleInfo(
       id: cashier,
       label: 'Cashier / Teller',
-      summary: 'Checkout, cash/M-Pesa, receipts. Cannot edit prices, refund, or see profit.',
+      summary: 'Checkout, cash sales, and unpaid tabs. Cannot edit prices, refund, or see profit.',
     ),
     StaffRoleInfo(
       id: stock,

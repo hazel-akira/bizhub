@@ -269,7 +269,6 @@ class _PartialPaymentDialog extends StatefulWidget {
 
 class _PartialPaymentDialogState extends State<_PartialPaymentDialog> {
   late final TextEditingController _amount;
-  String _method = 'cash';
   String? _error;
 
   @override
@@ -295,7 +294,7 @@ class _PartialPaymentDialogState extends State<_PartialPaymentDialog> {
       return;
     }
     FocusScope.of(context).unfocus();
-    Navigator.pop(context, (amount, _method));
+    Navigator.pop(context, (amount, 'cash'));
   }
 
   @override
@@ -323,24 +322,6 @@ class _PartialPaymentDialogState extends State<_PartialPaymentDialog> {
                 errorText: _error,
               ),
               onSubmitted: (_) => _confirm(),
-            ),
-            const SizedBox(height: 16),
-            Text('Method', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                ChoiceChip(
-                  label: const Text('Cash'),
-                  selected: _method == 'cash',
-                  onSelected: (_) => setState(() => _method = 'cash'),
-                ),
-                ChoiceChip(
-                  label: const Text('M-Pesa'),
-                  selected: _method == 'mpesa',
-                  onSelected: (_) => setState(() => _method = 'mpesa'),
-                ),
-              ],
             ),
           ],
         ),

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/whatsapp_helper.dart';
 import '../database/app_database.dart';
 import '../providers/unpaid_provider.dart';
-import '../widgets/sales/mpesa_checkout_flow.dart';
 
 class UnpaidScreen extends ConsumerStatefulWidget {
   const UnpaidScreen({super.key});
@@ -43,31 +42,6 @@ class _UnpaidScreenState extends ConsumerState<UnpaidScreen> {
       _nameController.clear();
       _amountController.clear();
       _notesController.clear();
-    }
-  }
-
-  Future<void> _collectMpesa(UnpaidRecord record) async {
-    final result = await MpesaCheckoutFlow.collect(
-      context: context,
-      ref: ref,
-      amount: record.amount,
-      reference: 'unpaid_${record.id}',
-    );
-    if (result == null || !mounted) return;
-
-    final markPaid = ref.read(markPaidProvider);
-    await markPaid(record.id);
-    ref.invalidate(unpaidRecordsProvider);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.mpesaReceiptNumber == null
-                ? 'M-Pesa payment received. Marked as paid.'
-                : 'M-Pesa ${result.mpesaReceiptNumber}. Marked as paid.',
-          ),
-        ),
-      );
     }
   }
 
@@ -259,19 +233,11 @@ class _UnpaidScreenState extends ConsumerState<UnpaidScreen> {
                                       ),
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.phone_android),
-                                      onPressed: () => _collectMpesa(r),
-                                      tooltip: 'Collect via M-Pesa',
-                                      style: IconButton.styleFrom(
-                                        foregroundColor: Colors.teal,
-                                      ),
-                                    ),
-                                    IconButton(
                                       icon: const Icon(
                                         Icons.check_circle_outline,
                                       ),
                                       onPressed: () => _markAsPaid(r),
-                                      tooltip: 'Mark as paid (cash)',
+                                      tooltip: 'Mark as paid',
                                     ),
                                   ],
                                 ),
