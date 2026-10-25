@@ -60,20 +60,20 @@ Akira Flow
 ### Short description (max 80)
 
 ```
-POS for Kenyan shops: sales, M-Pesa, stock, and daily profit.
+POS for Kenyan shops: cash sales, stock, and daily profit.
 ```
 
 ### Full description (max 4000)
 
 ```
-Akira Flow is a point-of-sale and shop manager for Kenyan small businesses. Record sales, collect M-Pesa, track stock, and see today’s profit on one phone.
+Akira Flow is a point-of-sale and shop manager for Kenyan small businesses. Record sales, track stock, and see today’s profit on one phone.
 
 WHO IT IS FOR
 Food vendors, small restaurants, grocery shops, pharmacies, boutiques, beauty shops, electronics shops, hardware stores, and cybercafes.
 
 WHAT YOU CAN DO
-• Record cash and M-Pesa sales in seconds
-• Send a Lipa Na M-Pesa STK prompt to the customer’s phone
+• Record cash sales in seconds
+• Save a sale as unpaid, then mark it paid when the customer settles
 • Keep inventory with low-stock alerts
 • Track orders, unpaid balances, expenses, and daily profit
 • Import customers from your phone contacts
@@ -81,12 +81,12 @@ WHAT YOU CAN DO
 • Sign in with email or Google and sync your shop to the cloud
 
 WHY SHOP OWNERS USE IT
-Stop guessing if you made money today. Akira Flow shows sales, costs, and profit in Kenyan shillings, with a workflow built around Till and Paybill collections.
+Stop guessing if you made money today. Akira Flow shows sales, costs, and profit in Kenyan shillings.
 
 HOW TO START
 1. Create a business account and pick your shop type
 2. Add products (or pick from the catalog)
-3. Record a sale — cash or M-Pesa
+3. Record a cash sale, or save it as unpaid
 4. Check the dashboard at the end of the day
 
 Akira Flow is built for operators who sell every day — not for enterprise ERP.

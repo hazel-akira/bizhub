@@ -107,10 +107,7 @@ class CloudBusinessAssistantService {
   }
 
   Future<String> _bestSellingThisWeek() async {
-    final now = DateTime.now();
-    final weekStart = DateTime(now.year, now.month, now.day)
-        .subtract(Duration(days: now.weekday - 1));
-    final sales = await _api.getSales(from: weekStart);
+    final sales = await _api.getSales();
     final weekSales = _salesThisWeek(sales);
     if (weekSales.isEmpty) return 'No sales this week yet.';
 
