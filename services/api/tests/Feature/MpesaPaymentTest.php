@@ -574,4 +574,110 @@ class MpesaPaymentTest extends TestCase
             'status' => MpesaTransactionStatus::Failed->value,
         ]);
     }
+
+    public function test_early_stk_timeout_from_daraja_does_not_close_the_prompt(): void
+    {
+        Http::fake([
+            'https://api.safaricom.co.ke/oauth/v1/generate*' => Http::response([
+                'access_token' => 'live-token',
+                'expires_in' => '3599',
+            ]),
+            'https://api.safaricom.co.ke/mpesa/stkpushquery/v1/query' => Http::response([
+                'ResultCode' => '1037',
+                'ResultDesc' => 'DS timeout user cannot be reached',
+            ]),
+        ]);
+
+        $business = Business::create([
+            'name' => 'Akira Bites',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '523456',
+            'consumer_key' => 'live-consumer-key',
+            'consumer_secret' => 'live-consumer-secret',
+            'passkey' => 'live-passkey',
+            'account_type' => 'till',
+        ])->assertOk();
+
+        $transaction = MpesaTransaction::create([
+            'business_id' => $business->id,
+            'phone' => '254712345678',
+            'amount' => 50,
+            'checkout_request_id' => 'ws_CO_live_prompt',
+            'status' => MpesaTransactionStatus::Pending,
+        ]);
+        MpesaTransaction::query()->whereKey($transaction->id)->update([
+            'created_at' => now()->subSeconds(50),
+        ]);
+
+        $this->getJson('/api/mpesa/status/ws_CO_live_prompt')
+            ->assertOk()
+            ->assertJsonPath('data.status', MpesaTransactionStatus::Pending->value);
+
+        $transaction->refresh();
+        $this->assertSame(MpesaTransactionStatus::Pending, $transaction->status);
+    }
+
+    public function test_stk_timeout_after_the_pin_window_is_reported_to_the_cashier(): void
+    {
+        Http::fake([
+            'https://api.safaricom.co.ke/oauth/v1/generate*' => Http::response([
+                'access_token' => 'live-token',
+                'expires_in' => '3599',
+            ]),
+            'https://api.safaricom.co.ke/mpesa/stkpushquery/v1/query' => Http::response([
+                'ResultCode' => '1037',
+                'ResultDesc' => 'DS timeout user cannot be reached',
+            ]),
+        ]);
+
+        $business = Business::create([
+            'name' => 'Akira Bites',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '523456',
+            'consumer_key' => 'live-consumer-key',
+            'consumer_secret' => 'live-consumer-secret',
+            'passkey' => 'live-passkey',
+            'account_type' => 'till',
+        ])->assertOk();
+
+        $transaction = MpesaTransaction::create([
+            'business_id' => $business->id,
+            'phone' => '254712345678',
+            'amount' => 50,
+            'checkout_request_id' => 'ws_CO_live_expired',
+            'status' => MpesaTransactionStatus::Pending,
+        ]);
+        MpesaTransaction::query()->whereKey($transaction->id)->update([
+            'created_at' => now()->subSeconds(90),
+        ]);
+
+        $this->getJson('/api/mpesa/status/ws_CO_live_expired')
+            ->assertOk()
+            ->assertJsonPath('data.status', MpesaTransactionStatus::Failed->value)
+            ->assertJsonPath('data.result_description', 'DS timeout user cannot be reached');
+    }
 }

@@ -54,12 +54,14 @@ class StkStatusResult {
   const StkStatusResult({
     required this.status,
     this.reference,
+    this.resultDescription,
     this.mpesaReceiptNumber,
     this.amount,
   });
 
   final String status;
   final String? reference;
+  final String? resultDescription;
   final String? mpesaReceiptNumber;
   final int? amount;
 
@@ -71,6 +73,7 @@ class StkStatusResult {
     return StkStatusResult(
       status: json['status'] as String? ?? 'PENDING',
       reference: json['reference'] as String?,
+      resultDescription: json['result_description'] as String?,
       mpesaReceiptNumber: json['mpesa_receipt_number'] as String?,
       amount: json['amount'] as int?,
     );

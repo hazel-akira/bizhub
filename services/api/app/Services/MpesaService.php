@@ -267,11 +267,18 @@ class MpesaService
         }
 
         $transaction = $query->with('business.mpesaConfig')->first();
+        $ageSeconds = $transaction?->created_at === null
+            ? 0
+            : now()->getTimestamp() - $transaction->created_at->getTimestamp();
+        // The handset often receives the PIN prompt 15–40s after Safaricom accepts
+        // the request. Querying sooner returns a false timeout or cancel, and the
+        // cashier screen closes before the customer can enter a PIN.
         if (
             $transaction
             && $transaction->status === MpesaTransactionStatus::Pending
-            && $transaction->created_at?->lt(now()->subSeconds(8))
+            && $ageSeconds >= 45
             && ! str_starts_with((string) $transaction->checkout_request_id, 'qr_')
+            && Cache::add('mpesa.stk.query.'.$transaction->id, true, now()->addSeconds(20))
         ) {
             $this->reconcileWithDaraja($transaction);
             $transaction->refresh();
@@ -401,9 +408,18 @@ class MpesaService
         $resultDesc = is_string($payload['ResultDesc'] ?? null)
             ? $payload['ResultDesc']
             : 'STK query result';
+        $ageSeconds = $transaction->created_at === null
+            ? 0
+            : now()->getTimestamp() - $transaction->created_at->getTimestamp();
 
-        // 4999 = still waiting for PIN / processing.
-        if ($resultCode === 4999) {
+        if ($this->stkQueryStillInFlight($resultCode, $resultDesc, $ageSeconds)) {
+            Log::info('Daraja STK query still in flight', [
+                'checkout_request_id' => $transaction->checkout_request_id,
+                'result_code' => $resultCode,
+                'result_desc' => $resultDesc,
+                'age_seconds' => $ageSeconds,
+            ]);
+
             return;
         }
 
@@ -425,11 +441,37 @@ class MpesaService
             return;
         }
 
+        Log::info('Daraja STK query failed', [
+            'checkout_request_id' => $transaction->checkout_request_id,
+            'result_code' => $resultCode,
+            'result_desc' => $resultDesc,
+            'age_seconds' => $ageSeconds,
+        ]);
+
         $transaction->update([
             'status' => MpesaTransactionStatus::Failed,
             'result_description' => $resultDesc,
         ]);
         $transaction->order?->update(['payment_status' => 'failed']);
+    }
+
+    /**
+     * Query codes that mean "the prompt is not finished yet". Daraja often
+     * returns 1032/1037 within the first minute even though the PIN screen
+     * has not reached the phone.
+     */
+    private function stkQueryStillInFlight(int $resultCode, string $resultDesc, int $ageSeconds): bool
+    {
+        if ($resultCode === 4999) {
+            return true;
+        }
+
+        $desc = strtolower($resultDesc);
+        if (str_contains($desc, 'being processed') || str_contains($desc, 'still under processing')) {
+            return true;
+        }
+
+        return in_array($resultCode, [1001, 1019, 1025, 1032, 1037], true) && $ageSeconds < 80;
     }
 
     private function requireConfig(Business $business): MpesaConfig

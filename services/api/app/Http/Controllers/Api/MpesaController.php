@@ -243,6 +243,7 @@ class MpesaController extends Controller
             'id' => $transaction->id,
             'status' => $transaction->status?->value,
             'reference' => $transaction->reference,
+            'result_description' => $transaction->result_description,
             'mpesa_receipt_number' => $transaction->mpesa_receipt_number,
             'amount' => $transaction->amount,
         ]);

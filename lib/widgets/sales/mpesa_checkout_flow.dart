@@ -188,7 +188,13 @@ class MpesaCheckoutFlow {
       return null;
     }
     if (status.isFailed) {
-      _snack(context, 'M-Pesa payment failed. Ask the customer to try again.');
+      final reason = status.resultDescription?.trim();
+      _snack(
+        context,
+        reason != null && reason.isNotEmpty
+            ? reason
+            : 'M-Pesa payment failed. Ask the customer to try again.',
+      );
       return null;
     }
     if (!status.isCompleted) {
