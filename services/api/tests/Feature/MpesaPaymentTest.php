@@ -398,4 +398,180 @@ class MpesaPaymentTest extends TestCase
         $this->assertSame('QLK7RT61SV', $transaction->mpesa_receipt_number);
         Event::assertDispatched(MpesaPaymentReceived::class);
     }
+
+    public function test_live_till_stk_uses_production_even_when_base_url_is_sandbox(): void
+    {
+        config([
+            'services.mpesa.base_url' => 'https://sandbox.safaricom.co.ke',
+            'services.mpesa.live_base_url' => 'https://api.safaricom.co.ke',
+            'services.mpesa.callback_url' => 'https://example.com/api/payments/stk-callback',
+        ]);
+
+        Http::fake([
+            'https://api.safaricom.co.ke/oauth/v1/generate*' => Http::response([
+                'access_token' => 'live-token',
+                'expires_in' => '3599',
+            ]),
+            'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest' => Http::response([
+                'MerchantRequestID' => 'mr-live',
+                'CheckoutRequestID' => 'ws_CO_live_1',
+                'ResponseCode' => '0',
+                'ResponseDescription' => 'Success. Request accepted for processing',
+                'CustomerMessage' => 'Success. Request accepted for processing',
+            ]),
+        ]);
+
+        $business = Business::create([
+            'name' => 'Akira Bites',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '523456',
+            'consumer_key' => 'live-consumer-key',
+            'consumer_secret' => 'live-consumer-secret',
+            'passkey' => 'live-passkey',
+            'account_type' => 'till',
+        ])->assertOk();
+
+        $this->postJson('/api/mpesa/stk-push', [
+            'business_id' => $business->id,
+            'phone' => '0712345678',
+            'amount' => 50,
+            'reference' => 'Beef Samosa',
+        ])->assertCreated()
+            ->assertJsonPath('data.phone', '254712345678')
+            ->assertJsonPath('data.status', MpesaTransactionStatus::Pending->value);
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
+                && $request['BusinessShortCode'] === '523456'
+                && $request['PartyB'] === '523456'
+                && $request['TransactionType'] === 'CustomerBuyGoodsOnline'
+                && $request['PhoneNumber'] === '254712345678'
+                && $request['Amount'] === 50
+                && $request['AccountReference'] === 'BEEFSAMOSA';
+        });
+
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'sandbox.safaricom.co.ke'));
+    }
+
+    public function test_sandbox_shortcode_stk_stays_on_sandbox(): void
+    {
+        config([
+            'services.mpesa.live_base_url' => 'https://api.safaricom.co.ke',
+            'services.mpesa.callback_url' => 'https://example.com/api/payments/stk-callback',
+        ]);
+
+        Http::fake([
+            'https://sandbox.safaricom.co.ke/*' => Http::response([
+                'access_token' => 'sandbox-token',
+                'expires_in' => '3599',
+                'MerchantRequestID' => 'mr-sbx',
+                'CheckoutRequestID' => 'ws_CO_sbx_1',
+                'ResponseCode' => '0',
+                'CustomerMessage' => 'Success. Request accepted for processing',
+            ]),
+        ]);
+
+        $business = Business::create([
+            'name' => 'Sandbox Shop',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '174379',
+            'consumer_key' => 'sandbox-key',
+            'consumer_secret' => 'sandbox-secret',
+            'passkey' => 'sandbox-passkey',
+            'account_type' => 'paybill',
+        ])->assertOk();
+
+        $this->postJson('/api/mpesa/stk-push', [
+            'business_id' => $business->id,
+            'phone' => '254708374149',
+            'amount' => 1,
+        ])->assertCreated();
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
+                && $request['TransactionType'] === 'CustomerPayBillOnline'
+                && $request['BusinessShortCode'] === '174379';
+        });
+
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'api.safaricom.co.ke'));
+    }
+
+    public function test_live_oauth_fault_does_not_tell_the_cashier_to_use_sandbox(): void
+    {
+        config([
+            'services.mpesa.base_url' => 'https://sandbox.safaricom.co.ke',
+            'services.mpesa.callback_url' => 'https://example.com/api/payments/stk-callback',
+        ]);
+
+        Http::fake([
+            'https://api.safaricom.co.ke/oauth/v1/generate*' => Http::response([
+                'fault' => [
+                    'faultstring' => 'Invalid ApiKey',
+                    'detail' => ['errorcode' => 'oauth.v2.InvalidApiKey'],
+                ],
+            ], 400),
+        ]);
+
+        $business = Business::create([
+            'name' => 'Akira Bites',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '523456',
+            'consumer_key' => 'live-consumer-key',
+            'consumer_secret' => 'live-consumer-secret',
+            'passkey' => 'live-passkey',
+            'account_type' => 'till',
+        ])->assertOk();
+
+        $response = $this->postJson('/api/mpesa/stk-push', [
+            'business_id' => $business->id,
+            'phone' => '0712345678',
+            'amount' => 50,
+        ]);
+
+        $response->assertStatus(422);
+        $message = (string) $response->json('errors.mpesa.0');
+        $this->assertStringContainsString('production consumer key', $message);
+        $this->assertStringNotContainsString('174379', $message);
+
+        $this->assertDatabaseHas('mpesa_transactions', [
+            'business_id' => $business->id,
+            'status' => MpesaTransactionStatus::Failed->value,
+        ]);
+    }
 }

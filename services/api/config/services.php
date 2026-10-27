@@ -36,7 +36,10 @@ return [
     ],
 
     'mpesa' => [
+        // Kept for older deploys. Live tills and paybills do not use this host:
+        // shortcode 174379 stays on sandbox, every other shortcode uses production.
         'base_url' => env('MPESA_BASE_URL', 'https://sandbox.safaricom.co.ke'),
+        'live_base_url' => env('MPESA_LIVE_BASE_URL', 'https://api.safaricom.co.ke'),
         'consumer_key' => env('MPESA_CONSUMER_KEY'),
         'consumer_secret' => env('MPESA_CONSUMER_SECRET'),
         'shortcode' => env('MPESA_SHORTCODE'),
