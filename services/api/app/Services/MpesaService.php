@@ -27,12 +27,13 @@ class MpesaService
         ?User $user = null,
     ): MpesaTransaction {
         $config = $this->requireConfig($business);
+        $phone = $this->requireMsisdn($phone);
 
         $transaction = MpesaTransaction::create([
             'business_id' => $business->id,
             'user_id' => $user?->id,
             'reference' => $reference ?: 'BIZ-'.$business->id.'-'.now()->format('YmdHis'),
-            'phone' => $this->normalizePhone($phone),
+            'phone' => $phone,
             'amount' => (int) round($amount),
             'checkout_request_id' => 'pending_'.Str::uuid(),
             'status' => MpesaTransactionStatus::Pending,
@@ -284,7 +285,7 @@ class MpesaService
         $config = $business->mpesaConfig ?? new MpesaConfig(['business_id' => $business->id]);
 
         if (array_key_exists('shortcode', $data) && filled($data['shortcode'])) {
-            $config->shortcode = $data['shortcode'];
+            $config->shortcode = trim((string) $data['shortcode']);
         }
         if (array_key_exists('account_type', $data) && filled($data['account_type'])) {
             $config->account_type = MpesaAccountType::from($data['account_type']);
@@ -296,12 +297,12 @@ class MpesaService
         }
         foreach (['consumer_key', 'consumer_secret', 'passkey'] as $secret) {
             if (array_key_exists($secret, $data) && filled($data[$secret])) {
-                $config->{$secret} = $data[$secret];
+                $config->{$secret} = trim((string) $data[$secret]);
             }
         }
 
         $config->save();
-        Cache::forget($this->tokenCacheKey($business->id));
+        $this->forgetAccessToken($config);
 
         return $config->fresh();
     }
@@ -371,15 +372,16 @@ class MpesaService
             return;
         }
 
+        $shortcode = $this->normalizedShortcode($config);
         $timestamp = now('Africa/Nairobi')->format('YmdHis');
-        $password = base64_encode($config->shortcode.$config->passkey.$timestamp);
+        $password = base64_encode($shortcode.$this->normalizedPasskey($config).$timestamp);
 
         $response = Http::timeout(20)
             ->withToken($this->getAccessToken($config))
             ->acceptJson()
             ->asJson()
-            ->post(config('services.mpesa.base_url').'/mpesa/stkpushquery/v1/query', [
-                'BusinessShortCode' => $config->shortcode,
+            ->post($this->darajaBaseUrl($config).'/mpesa/stkpushquery/v1/query', [
+                'BusinessShortCode' => $shortcode,
                 'Password' => $password,
                 'Timestamp' => $timestamp,
                 'CheckoutRequestID' => $transaction->checkout_request_id,
@@ -457,7 +459,7 @@ class MpesaService
             ->withToken($this->getAccessToken($config))
             ->acceptJson()
             ->asJson()
-            ->post(config('services.mpesa.base_url').'/mpesa/qrcode/v1/generate', [
+            ->post($this->darajaBaseUrl($config).'/mpesa/qrcode/v1/generate', [
                 'MerchantName' => $this->merchantName($business),
                 'RefNo' => $transaction->reference,
                 'Amount' => (int) $transaction->amount,
@@ -499,7 +501,7 @@ class MpesaService
                 ->withToken($this->getAccessToken($config))
                 ->acceptJson()
                 ->asJson()
-                ->post(config('services.mpesa.base_url').'/mpesa/c2b/v1/registerurl', [
+                ->post($this->darajaBaseUrl($config).'/mpesa/c2b/v1/registerurl', [
                     'ShortCode' => trim((string) $config->shortcode),
                     'ResponseType' => 'Completed',
                     'ConfirmationURL' => $confirm,
@@ -579,37 +581,55 @@ class MpesaService
 
     private function sendDarajaStkPush(MpesaTransaction $transaction, MpesaConfig $config): void
     {
-        $token = $this->getAccessToken($config);
+        try {
+            $token = $this->getAccessToken($config);
+        } catch (ValidationException $e) {
+            $message = collect($e->errors())->flatten()->first() ?: 'Could not authenticate with Safaricom.';
+            $transaction->update([
+                'status' => MpesaTransactionStatus::Failed,
+                'result_description' => $message,
+            ]);
+            throw $e;
+        }
+
+        $shortcode = $this->normalizedShortcode($config);
         $timestamp = now('Africa/Nairobi')->format('YmdHis');
-        $password = base64_encode($config->shortcode.$config->passkey.$timestamp);
-        $phone = $this->normalizePhone($transaction->phone);
+        $password = base64_encode($shortcode.$this->normalizedPasskey($config).$timestamp);
+        $phone = $this->requireMsisdn((string) $transaction->phone);
         $stk = $this->resolveStkPushParameters($config);
+        $baseUrl = $this->darajaBaseUrl($config);
 
         $response = Http::timeout(30)
             ->withToken($token)
             ->acceptJson()
             ->asJson()
-            ->post(config('services.mpesa.base_url').'/mpesa/stkpush/v1/processrequest', [
-                'BusinessShortCode' => $config->shortcode,
+            ->post($baseUrl.'/mpesa/stkpush/v1/processrequest', [
+                'BusinessShortCode' => $shortcode,
                 'Password' => $password,
                 'Timestamp' => $timestamp,
                 'TransactionType' => $stk['transaction_type'],
-                'Amount' => $transaction->amount,
+                'Amount' => (int) $transaction->amount,
                 'PartyA' => $phone,
                 'PartyB' => $stk['party_b'],
                 'PhoneNumber' => $phone,
                 'CallBackURL' => $this->resolveCallbackUrl(),
-                'AccountReference' => Str::limit($transaction->reference ?? 'AkiraFlow', 12, ''),
+                'AccountReference' => $this->stkAccountReference($transaction->reference),
                 'TransactionDesc' => 'Sale payment',
             ]);
 
-        $payload = $response->json();
-        if (! is_array($payload)) {
-            $payload = [];
-        }
+        $payload = $this->decodeDarajaPayload($response);
 
         if ($response->failed()) {
-            $message = $this->darajaErrorMessage($payload, $response->status(), $config);
+            $message = $this->darajaErrorMessage($payload, $response->status(), $config, $response->body());
+
+            Log::warning('Daraja STK push rejected', [
+                'status' => $response->status(),
+                'host' => parse_url($baseUrl, PHP_URL_HOST),
+                'shortcode' => $shortcode,
+                'account_type' => $config->account_type?->value,
+                'transaction_type' => $stk['transaction_type'],
+                'error' => $message,
+            ]);
 
             $transaction->update([
                 'status' => MpesaTransactionStatus::Failed,
@@ -648,23 +668,34 @@ class MpesaService
     private function getAccessToken(MpesaConfig $config): string
     {
         return Cache::remember(
-            $this->tokenCacheKey($config->business_id),
+            $this->tokenCacheKey($config),
             now()->addMinutes(50),
             function () use ($config) {
+                $baseUrl = $this->darajaBaseUrl($config);
                 $response = Http::timeout(20)
-                    ->withBasicAuth($config->consumer_key, $config->consumer_secret)
+                    ->withBasicAuth(
+                        trim((string) $config->consumer_key),
+                        trim((string) $config->consumer_secret),
+                    )
                     ->acceptJson()
-                    ->get(config('services.mpesa.base_url').'/oauth/v1/generate', [
+                    ->get($baseUrl.'/oauth/v1/generate', [
                         'grant_type' => 'client_credentials',
                     ]);
 
-                $token = $response->json('access_token');
-                if ($response->failed() || ! filled($token)) {
+                $payload = $this->decodeDarajaPayload($response);
+                $token = $payload['access_token'] ?? null;
+                if ($response->failed() || ! is_string($token) || $token === '') {
+                    $message = $this->darajaErrorMessage($payload, $response->status(), $config, $response->body(), 'oauth');
+
+                    Log::warning('Daraja OAuth rejected', [
+                        'status' => $response->status(),
+                        'host' => parse_url($baseUrl, PHP_URL_HOST),
+                        'shortcode' => $this->normalizedShortcode($config),
+                        'error' => $message,
+                    ]);
+
                     throw ValidationException::withMessages([
-                        'mpesa' => [
-                            $this->darajaErrorMessage($response->json() ?? [], $response->status())
-                                ?: 'Could not authenticate with Safaricom. Check the consumer key and secret.',
-                        ],
+                        'mpesa' => [$message],
                     ]);
                 }
 
@@ -678,7 +709,7 @@ class MpesaService
      */
     private function resolveStkPushParameters(MpesaConfig $config): array
     {
-        $shortcode = trim((string) $config->shortcode);
+        $shortcode = $this->normalizedShortcode($config);
         $accountType = $config->account_type ?? MpesaAccountType::Paybill;
 
         if ($shortcode === '174379') {
@@ -694,9 +725,81 @@ class MpesaService
         ];
     }
 
-    private function darajaErrorMessage(mixed $payload, int $status, ?MpesaConfig $config = null): string
+    /**
+     * Sandbox Paybill 174379 stays on the sandbox host. A real till or paybill
+     * is sent to production even when MPESA_BASE_URL is still the sandbox URL.
+     */
+    private function darajaBaseUrl(MpesaConfig $config): string
     {
+        if ($this->isSandboxConfig($config)) {
+            return 'https://sandbox.safaricom.co.ke';
+        }
+
+        $live = rtrim((string) config('services.mpesa.live_base_url'), '/');
+        if ($live === '' || str_contains($live, 'sandbox.safaricom.co.ke')) {
+            return 'https://api.safaricom.co.ke';
+        }
+
+        return $live;
+    }
+
+    private function normalizedShortcode(MpesaConfig $config): string
+    {
+        return trim((string) $config->shortcode);
+    }
+
+    private function normalizedPasskey(MpesaConfig $config): string
+    {
+        return trim((string) $config->passkey);
+    }
+
+    private function stkAccountReference(?string $reference): string
+    {
+        $clean = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $reference) ?? '');
+        if ($clean === '') {
+            $clean = 'AKIRAFLOW';
+        }
+
+        return substr($clean, 0, 12);
+    }
+
+    private function requireMsisdn(string $phone): string
+    {
+        $normalized = $this->normalizePhone($phone);
+        if (! preg_match('/^254\d{9}$/', $normalized)) {
+            throw ValidationException::withMessages([
+                'phone' => ['Enter a valid M-Pesa number, for example 0712345678.'],
+            ]);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  \Illuminate\Http\Client\Response  $response
+     * @return array<string, mixed>
+     */
+    private function decodeDarajaPayload($response): array
+    {
+        $payload = $response->json();
+        if (is_array($payload)) {
+            return $payload;
+        }
+
+        $decoded = json_decode(ltrim((string) $response->body(), "\xEF\xBB\xBF"), true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function darajaErrorMessage(
+        mixed $payload,
+        int $status,
+        ?MpesaConfig $config = null,
+        ?string $rawBody = null,
+        string $context = 'stk',
+    ): string {
         $message = null;
+        $errorCode = null;
 
         if (is_array($payload)) {
             foreach (['errorMessage', 'ResponseDescription', 'CustomerMessage', 'error_description'] as $key) {
@@ -705,37 +808,108 @@ class MpesaService
                     break;
                 }
             }
+
+            if (isset($payload['fault']) && is_array($payload['fault'])) {
+                $fault = $payload['fault']['faultstring'] ?? null;
+                if ($message === null && is_string($fault) && $fault !== '') {
+                    $message = $fault;
+                }
+                $detailCode = $payload['fault']['detail']['errorcode'] ?? null;
+                if (is_string($detailCode) && $detailCode !== '') {
+                    $errorCode = $detailCode;
+                }
+            }
+
+            if (isset($payload['errorCode']) && is_string($payload['errorCode']) && $payload['errorCode'] !== '') {
+                $errorCode = $payload['errorCode'];
+            }
         }
 
-        if ($message !== null && stripos($message, 'invalid callback') !== false) {
+        if ($message === null && is_string($rawBody)) {
+            $raw = trim(preg_replace('/\s+/', ' ', strip_tags($rawBody)) ?? '');
+            if ($raw !== '' && strlen($raw) <= 240 && ! str_starts_with($raw, '<')) {
+                $message = $raw;
+            }
+        }
+
+        $live = $config !== null && ! $this->isSandboxConfig($config);
+        $shortcode = $config ? $this->normalizedShortcode($config) : '?';
+        $haystack = strtolower(($message ?? '').' '.($errorCode ?? ''));
+        $compact = str_replace([' ', '_', '-', '.'], '', $haystack);
+
+        if (str_contains($haystack, 'invalid callback')) {
             return 'Invalid M-Pesa callback URL. Safaricom rejects URLs containing "mpesa" in the path. '
                 .'Set MPESA_CALLBACK_URL to https://YOUR-DOMAIN/api/payments/stk-callback on the server.';
         }
 
+        if (str_contains($compact, 'invalidapikey') || str_contains($haystack, 'invalid authentication')) {
+            return $live
+                ? 'Safaricom rejected the production consumer key or secret for till/paybill '.$shortcode.'. Use the key and secret from the Daraja app after Go Live, not the sandbox app.'
+                : 'Safaricom rejected the sandbox consumer key or secret. Sandbox STK only works with Paybill 174379 and the sandbox app keys.';
+        }
+
+        if ($message !== null && (stripos($message, 'invalid password') !== false || stripos($message, 'invalid businessshortcode') !== false)) {
+            return $live
+                ? 'Safaricom rejected shortcode '.$shortcode.' or its Lipa Na M-Pesa passkey. Use the passkey issued for this exact shortcode when the Daraja app went live.'
+                : 'Safaricom rejected the sandbox password. Use Paybill 174379 and the Lipa Na M-Pesa Online passkey from the sandbox app.';
+        }
+
+        if ($message !== null && stripos($message, 'invalid party') !== false) {
+            $typeLabel = $config?->account_type?->label() ?? 'account';
+
+            return 'Safaricom rejected '.$typeLabel.' shortcode '.$shortcode.' as the receiving account. '
+                .'Till payments must use account type Till number. Paybill payments must use account type Paybill.';
+        }
+
         if ($message !== null && (stripos($message, 'product') !== false || stripos($message, 'not authorized') !== false)) {
-            return 'QR is not enabled on this Daraja app. In the Safaricom Daraja portal, add the “QR Code” product to the app, then try again. Sandbox 174379 still cannot be paid by a real M-Pesa phone — use production Till/Paybill for live scan-to-pay.';
+            return 'This Daraja app is not allowed to use that M-Pesa product. On the production app, enable Lipa Na M-Pesa Online for the till, then try again.';
         }
 
         if ($message !== null && stripos($message, 'invalid transaction type') !== false) {
             $typeLabel = $config?->account_type?->label() ?? 'unknown';
-            $shortcode = $config?->shortcode ?? '?';
 
-            return 'Invalid M-Pesa transaction type for '.$typeLabel.' shortcode '.$shortcode.'. '
-                .'Sandbox: Paybill + 174379 + Lipa Na M-Pesa Online passkey. '
-                .'Till: account type Till + your till number (Buy Goods). '
-                .'Paybill: account type Paybill + your paybill number.';
+            return $live
+                ? 'Invalid M-Pesa transaction type for '.$typeLabel.' shortcode '.$shortcode.'. Set account type to Till number for a Buy Goods till, or Paybill for a paybill.'
+                : 'Invalid M-Pesa transaction type for '.$typeLabel.' shortcode '.$shortcode.'. Sandbox STK uses Paybill 174379 and the Lipa Na M-Pesa Online passkey.';
         }
 
         if ($message !== null) {
+            if (is_string($errorCode) && $errorCode !== '' && ! str_contains($message, $errorCode)) {
+                return $message.' ('.$errorCode.')';
+            }
+
             return $message;
+        }
+
+        $code = is_string($errorCode) && $errorCode !== '' ? ' Safaricom code: '.$errorCode.'.' : '';
+
+        if ($context === 'oauth') {
+            return $live
+                ? 'Could not sign in to Safaricom production (HTTP '.$status.').'.$code.' Use the consumer key and secret from the Daraja app after Go Live.'
+                : 'Could not sign in to the Safaricom sandbox (HTTP '.$status.').'.$code.' Use the sandbox app key and secret with Paybill 174379.';
+        }
+
+        if ($live) {
+            return 'Safaricom rejected the live STK Push (HTTP '.$status.').'.$code
+                .' Check the till number, the production consumer key and secret, and the Lipa Na M-Pesa passkey from Go Live.';
         }
 
         return 'Safaricom rejected the STK Push (HTTP '.$status.'). Use sandbox Paybill 174379 and the Lipa Na M-Pesa Online passkey.';
     }
 
-    private function tokenCacheKey(int $businessId): string
+    private function forgetAccessToken(MpesaConfig $config): void
     {
-        return 'mpesa.oauth.'.$businessId;
+        Cache::forget('mpesa.oauth.'.$config->business_id);
+        Cache::forget($this->tokenCacheKey($config));
+        Cache::forget('mpesa.oauth.'.$config->business_id.'.sandbox.safaricom.co.ke');
+        Cache::forget('mpesa.oauth.'.$config->business_id.'.api.safaricom.co.ke');
+    }
+
+    private function tokenCacheKey(MpesaConfig $config): string
+    {
+        $host = parse_url($this->darajaBaseUrl($config), PHP_URL_HOST) ?: 'daraja';
+
+        return 'mpesa.oauth.'.$config->business_id.'.'.$host;
     }
 
     /** @return array{url: string, valid: bool, error?: string} */
