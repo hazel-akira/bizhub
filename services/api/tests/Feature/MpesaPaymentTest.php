@@ -680,4 +680,51 @@ class MpesaPaymentTest extends TestCase
             ->assertJsonPath('data.status', MpesaTransactionStatus::Failed->value)
             ->assertJsonPath('data.result_description', 'DS timeout user cannot be reached');
     }
+
+    public function test_paybill_request_to_a_till_explains_the_account_type_mismatch(): void
+    {
+        $business = Business::create([
+            'name' => 'Akira Bites',
+            'business_type' => 'grocery_shop',
+            'is_active' => true,
+        ]);
+
+        $user = User::factory()->create([
+            'business_id' => $business->id,
+            'role' => 'owner',
+            'is_active' => true,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/mpesa/config', [
+            'shortcode' => '523456',
+            'consumer_key' => 'live-consumer-key',
+            'consumer_secret' => 'live-consumer-secret',
+            'passkey' => 'live-passkey',
+            'account_type' => 'paybill',
+        ])->assertOk();
+
+        $transaction = MpesaTransaction::create([
+            'business_id' => $business->id,
+            'phone' => '254712345678',
+            'amount' => 90,
+            'checkout_request_id' => 'ws_CO_reason_type',
+            'status' => MpesaTransactionStatus::Pending,
+        ]);
+
+        $this->postJson('/api/payments/stk-callback', [
+            'Body' => [
+                'stkCallback' => [
+                    'CheckoutRequestID' => 'ws_CO_reason_type',
+                    'ResultCode' => 2029,
+                    'ResultDesc' => 'Failed due to an unresolved reason type.',
+                ],
+            ],
+        ])->assertOk();
+
+        $transaction->refresh();
+        $this->assertSame(MpesaTransactionStatus::Failed, $transaction->status);
+        $this->assertStringContainsString('Till number', (string) $transaction->result_description);
+    }
 }

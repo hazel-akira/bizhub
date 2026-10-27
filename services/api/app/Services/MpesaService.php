@@ -339,6 +339,8 @@ class MpesaService
 
         $resultCode = (int) ($body['ResultCode'] ?? 1);
         $resultDesc = is_string($body['ResultDesc'] ?? null) ? $body['ResultDesc'] : 'Unknown result';
+        $transaction->loadMissing('business.mpesaConfig');
+        $resultDesc = $this->explainStkResult($resultDesc, $transaction->business?->mpesaConfig);
 
         if ($resultCode === 0) {
             $receipt = $this->callbackMetadataValue($body, 'MpesaReceiptNumber');
@@ -405,9 +407,10 @@ class MpesaService
         }
 
         $resultCode = (int) $resultCode;
-        $resultDesc = is_string($payload['ResultDesc'] ?? null)
-            ? $payload['ResultDesc']
-            : 'STK query result';
+        $resultDesc = $this->explainStkResult(
+            is_string($payload['ResultDesc'] ?? null) ? $payload['ResultDesc'] : 'STK query result',
+            $config,
+        );
         $ageSeconds = $transaction->created_at === null
             ? 0
             : now()->getTimestamp() - $transaction->created_at->getTimestamp();
@@ -453,6 +456,24 @@ class MpesaService
             'result_description' => $resultDesc,
         ]);
         $transaction->order?->update(['payment_status' => 'failed']);
+    }
+
+    /**
+     * Safaricom result 2029: the STK type does not match the shortcode.
+     * Paybill requests use CustomerPayBillOnline. Till requests use CustomerBuyGoodsOnline.
+     */
+    private function explainStkResult(string $resultDesc, ?MpesaConfig $config): string
+    {
+        if (stripos($resultDesc, 'unresolved reason type') === false) {
+            return $resultDesc;
+        }
+
+        $shortcode = $config ? $this->normalizedShortcode($config) : 'this number';
+        if ($config?->account_type === MpesaAccountType::Till) {
+            return 'Safaricom says '.$shortcode.' is not a Buy Goods till. In Lipa Na M-Pesa settings, set account type to Paybill, save, and try again.';
+        }
+
+        return 'Safaricom says '.$shortcode.' is a Buy Goods till, not a paybill. In Lipa Na M-Pesa settings, set account type to Till number, save, and try again.';
     }
 
     /**
@@ -872,6 +893,10 @@ class MpesaService
             if ($raw !== '' && strlen($raw) <= 240 && ! str_starts_with($raw, '<')) {
                 $message = $raw;
             }
+        }
+
+        if (is_string($message) && stripos($message, 'unresolved reason type') !== false) {
+            return $this->explainStkResult($message, $config);
         }
 
         $live = $config !== null && ! $this->isSandboxConfig($config);
